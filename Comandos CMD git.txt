@@ -1,0 +1,13 @@
+Sempre que fizeres alteraçoes ao codigo é isto que tenho que fazer:
+git add .
+git commit -m "Mensagem sobre o que alteraste"
+git push
+
+---------------------------------------------------------------------------
+Usas isto apenas quando atualizares o .gitignore, para o Git “esquecer” ficheiros que já estavam a ser seguidos 
+e aplicar as novas regras de ignorar ficheiros antes de voltar a fazer commit e push.
+
+git rm -r --cached .
+git add .
+git commit -m "Atualiza .gitignore"
+git push
