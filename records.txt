@@ -1,0 +1,3 @@
+nome | modo | dificuldade | pontuacao | data
+Tiago | Snake Torre | Rápido | 1200 | 2025-11-03 20:55
+Rita | OG Snake | Normal | 800 | 2025-11-03 20:55

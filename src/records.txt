@@ -1,0 +1,2 @@
+nome | modo | dificuldade | pontuacao | data
+sam | OG Snake | Normal | 74 | 2025-11-03 21:22
