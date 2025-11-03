@@ -105,6 +105,3 @@ class Menu:
         print("Cada dificuldade tem um multiplicador de pontos.")
         print("================\n")
 
-if __name__ == "__main__":
-    menu = Menu()
-    menu.mostrar_menu_principal()
