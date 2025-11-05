@@ -7,34 +7,41 @@ from game.records import RecordsManager
 from game.hud import HUD
 from game.score import Score
 
-class Game:
-    def __init__(self, player_name="Player", modo="OG Snake", dificuldade="Normal"):
-        pygame.init()
-        pygame.display.set_caption("Snake - Test")
+class Game: 
+    def __init__(self, player_name="Player", modo="OG Snake", dificuldade="Normal", velocidade_mult=1.0):
+        self.player_name = player_name
+        self.modo = modo
+        self.dificuldade = dificuldade
+        self.velocidade_mult = velocidade_mult  # 👈 agora o menu pode enviar este valor
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-        self.clock = pygame.time.Clock()
-        self.running = False
 
-        # playable area: full screen (could reserve margins)
+        self.clock = pygame.time.Clock()
+        self.running = True
+
+        # área de jogo
         self.play_rect = (0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
 
         # managers
         self.records = RecordsManager()
         self.hud = HUD(jogador=player_name, modo=modo, dificuldade=dificuldade)
+
+        # multiplicador de pontuação (mantém a tua lógica interna)
         mult = 1.0
-        if dificuldade == "Rápido" or dificuldade == "Rapido":
-            mult = 1.5
-        elif dificuldade == "Muito Rápido":
+        if dificuldade in ("Rápido", "Rapido"):
             mult = 2.0
+        elif dificuldade == "Muito Rápido":
+            mult = 3.0
+
         self.score = Score(multiplicador=mult)
 
-        # entities
+        # entidades
         start = (BLOCK_SIZE * 5, BLOCK_SIZE * 5)
         self.snake = Snake(start_pos=start, block_size=BLOCK_SIZE)
         self.food = Food(self.play_rect, BLOCK_SIZE)
 
-        # game params
+        # parâmetros do jogo
         self.base_fps = FPS
+
 
     def handle_events(self):
         for event in pygame.event.get():
@@ -100,9 +107,8 @@ class Game:
             self.update()
             self.draw()
             # FPS scaled by multiplier? use base fps for simplicity
-            self.clock.tick(self.base_fps)
-        pygame.quit()
-
+            self.clock.tick(int(self.base_fps * self.velocidade_mult))
+        
     def game_over(self):
         # save record
         self.records.guardar_pontuacao(self.hud.jogador, self.hud.modo, self.hud.dificuldade, self.score.obter_pontuacao())

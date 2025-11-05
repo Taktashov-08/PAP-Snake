@@ -1,5 +1,2 @@
-nome | modo | dificuldade | pontuacao | data
-Tiago | OG Snake | Normal | 290 | 2025-11-03 21:57
-Tiago | OG Snake | Normal | 20 | 2025-11-03 22:22
-Samuel | OG Snake | Muito Rapido | 20 | 2025-11-03 22:28
-Samuel | OG Snake | Muito Rápido | 320 | 2025-11-03 22:30
+nome | modo | dificuldade | pontuacao | data	
+	BetaTestCam	|	OG Snake	|	Rápido	|	940	|	2025-11-05 22:22	

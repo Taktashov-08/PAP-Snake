@@ -10,7 +10,7 @@ class RecordsManager:
         # cria o ficheiro se não existir
         if not os.path.exists(self.filepath):
             with open(self.filepath, "w") as file:
-                file.write("nome | modo | dificuldade | pontuacao | data\n")
+                file.write("\tnome\t|\tmodo\t|\tdificuldade\t|\tpontuacao\t|\tdata\t\n")
 
     def guardar_pontuacao(self, nome, modo, dificuldade, pontuacao):
         """
@@ -18,7 +18,7 @@ class RecordsManager:
         """
         data_atual = datetime.now().strftime("%Y-%m-%d %H:%M")
         with open(self.filepath, "a") as file:
-            file.write(f"{nome} | {modo} | {dificuldade} | {pontuacao} | {data_atual}\n")
+            file.write(f"\t{nome}\t|\t{modo}\t|\t{dificuldade}\t|\t{pontuacao}\t|\t{data_atual}\t\n")
 
     def ler_pontuacoes(self, modo_filtrar=None):
         """
@@ -50,5 +50,5 @@ class RecordsManager:
         Apaga todos os registos e recria o ficheiro vazio
         """
         with open(self.filepath, "w") as file:
-            file.write("nome | modo | dificuldade | pontuacao | data\n")
+            file.write("nome|modo|dificuldade|pontuacao|data----\n")
 
