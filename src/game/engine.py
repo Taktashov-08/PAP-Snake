@@ -7,8 +7,9 @@ from game.records import RecordsManager
 from game.hud import HUD
 from game.score import Score
 
+
 class Game: 
-    def __init__(self, player_name="Player", modo="OG Snake", dificuldade="Normal", velocidade_mult=1.0):
+    def __init__(self, player_name="Player", modo="OG Snake", dificuldade="Normal", velocidade_mult=1.0, mapa_tipo=1):
         self.player_name = player_name
         self.modo = modo
         self.dificuldade = dificuldade
@@ -24,6 +25,9 @@ class Game:
         # managers
         self.records = RecordsManager()
         self.hud = HUD(jogador=player_name, modo=modo, dificuldade=dificuldade)
+
+        from game.map import Mapas
+        self.mapa = Mapas(mapa_tipo)
 
         # multiplicador de pontuação (mantém a tua lógica interna)
         mult = 1.0
@@ -85,6 +89,10 @@ class Game:
 
     def draw(self):
         self.screen.fill(BLACK)
+        for x, y in self.mapa.obstaculos:
+            pygame.draw.rect(self.screen, (100, 100, 100),
+                     (x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE))
+            
         # draw play area border (optional)
         pygame.draw.rect(self.screen, (40,40,40), pygame.Rect(*self.play_rect), 2)
 

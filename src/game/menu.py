@@ -115,6 +115,8 @@ class Menu:
         escolher = True
         dif_font = pygame.font.SysFont(None, 40)
         opcoes = [("Normal", 1.0), ("Rápido", 1.5), ("Muito Rápido", 2.0)]
+        dificuldade = None  # inicializa a variável
+
         while escolher:
             self.screen.fill(self.bg_color)
             txt = dif_font.render("Escolhe a Dificuldade:", True, WHITE)
@@ -134,32 +136,85 @@ class Menu:
                 if event.type == pygame.QUIT:
                     escolher = False
                     self.running = False
-                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                     mouse = event.pos
                     if 300 <= mouse[0] <= 500:
                         if 250 <= mouse[1] <= 300:
                             dificuldade = ("Normal", 1.0)
-                            escolher = False
                         elif 330 <= mouse[1] <= 380:
                             dificuldade = ("Rápido", 1.5)
-                            escolher = False
                         elif 410 <= mouse[1] <= 460:
                             dificuldade = ("Muito Rápido", 2.0)
+                        if dificuldade:
                             escolher = False
+
             pygame.time.Clock().tick(30)
 
-        if self.running:
-            self.iniciar_jogo(dificuldade)
+        if self.running and dificuldade:
+            self.escolher_mapa(dificuldade)
 
-    def iniciar_jogo(self, dificuldade):
+
+
+    def escolher_mapa(self, dificuldade):
+        """Permite ao jogador escolher o mapa antes de iniciar o jogo."""
+        escolher = True
+        fonte = pygame.font.SysFont(None, 40)
+        opcoes = [
+            ("Mapa 1 - Campo Livre", 1),
+            ("Mapa 2 - Obstáculos", 2),
+            ("Mapa 3 - Arena", 3)
+        ]
+        mapa = None
+
+        while escolher:
+            self.screen.fill((30, 30, 30))
+            txt = fonte.render("Escolhe o Mapa:", True, (255, 255, 255))
+            self.screen.blit(txt, (300, 150))
+
+            y = 250
+            for nome, tipo in opcoes:
+                rect = pygame.Rect(300, y, 300, 50)
+                pygame.draw.rect(self.screen, (0, 120, 255), rect, border_radius=10)
+                label = fonte.render(nome, True, (255, 255, 255))
+                self.screen.blit(label, label.get_rect(center=rect.center))
+                y += 80
+
+            pygame.display.flip()
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    escolher = False
+                    self.running = False
+                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    mouse = event.pos
+                    if 300 <= mouse[0] <= 600:
+                        if 250 <= mouse[1] <= 300:
+                            mapa = 1
+                        elif 330 <= mouse[1] <= 380:
+                            mapa = 2
+                        elif 410 <= mouse[1] <= 460:
+                            mapa = 3
+                        if mapa:
+                            escolher = False
+
+            pygame.time.Clock().tick(30)
+
+        if self.running and mapa:
+            self.iniciar_jogo(dificuldade, mapa)
+
+
+
+    def iniciar_jogo(self, dificuldade, mapa_tipo):
         jogador = getattr(self, "player_name", "Jogador")
         modo = "OG Snake"
         nome_dif, mult = dificuldade
-        game = Game(player_name=jogador, modo=modo, dificuldade=nome_dif, velocidade_mult=mult)
+        game = Game(player_name=jogador, modo=modo, dificuldade=nome_dif, velocidade_mult=mult, mapa_tipo=mapa_tipo)
         game.run()
-
+        # quando voltar do jogo, re-cria o ecrã do menu
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         pygame.display.set_caption("Snake Menu")
+
+
 
     # ---------------------- Ecrã de Recordes -----------------------
     def recordes(self):
