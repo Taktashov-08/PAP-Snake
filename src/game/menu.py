@@ -7,6 +7,7 @@ from game.config import SCREEN_WIDTH, SCREEN_HEIGHT, WHITE, BLACK, GREEN, RED, B
 
 pygame.init()
 
+
 class Button:
     """Classe simples de botão"""
     def __init__(self, text, x, y, w, h, color, hover_color, action=None):
@@ -39,13 +40,19 @@ class Menu:
         self.bg_color = (30, 30, 30)
         self.font = pygame.font.SysFont(None, 60)
 
-        # cria os botões principais
+        # Cálculo para centralizar os botões
+        center_x = SCREEN_WIDTH // 2 - 100   # largura do botão = 200 → desloca metade
+        start_y = SCREEN_HEIGHT // 2 - 120    # posiciona o primeiro botão acima do centro
+        spacing = 80                          # espaço vertical entre botões
+
+        # Criação dos botões centralizados
         self.buttons = [
-            Button("Jogar", 300, 200, 200, 60, BLUE, (0, 150, 255), self.jogar),
-            Button("Recordes", 300, 280, 200, 60, GREEN, (0, 200, 100), self.recordes),
-            Button("Ajuda", 300, 360, 200, 60, (255, 165, 0), (255, 200, 0), self.ajuda),
-            Button("Sair", 300, 440, 200, 60, RED, (255, 100, 100), self.sair)
+            Button("Jogar", center_x, start_y, 200, 60, BLUE, (0, 150, 255), self.jogar),
+            Button("Recordes", center_x, start_y + spacing, 200, 60, GREEN, (0, 200, 100), self.recordes),
+            Button("Ajuda", center_x, start_y + spacing * 2, 200, 60, (255, 165, 0), (255, 200, 0), self.ajuda),
+            Button("Sair", center_x, start_y + spacing * 3, 200, 60, RED, (255, 100, 100), self.sair)
         ]
+
 
     def desenhar_titulo(self):
         titulo = self.font.render("🐍 Snake Game 🐍", True, WHITE)
@@ -65,22 +72,18 @@ class Menu:
         while ativo:
             self.screen.fill((30, 30, 30))
 
-            # Título
-            titulo = fonte.render("Insere o teu nome (máx. 10):", True, (255, 255, 255))
+            titulo = fonte.render("Insere o teu nome (máx. 12):", True, WHITE)
             self.screen.blit(titulo, (180, 150))
 
-            # Caixa de texto
             caixa_rect = pygame.Rect(250, 220, 300, 50)
             pygame.draw.rect(self.screen, (100, 100, 100), caixa_rect, border_radius=8)
-            texto_nome = fonte.render(nome, True, (255, 255, 255))
+            texto_nome = fonte.render(nome, True, WHITE)
             self.screen.blit(texto_nome, (caixa_rect.x + 10, caixa_rect.y + 10))
 
-            # Aviso (erro de validação)
             if aviso:
                 aviso_text = aviso_font.render(aviso, True, (255, 100, 100))
                 self.screen.blit(aviso_text, (250, 280))
 
-            # Instrução
             instru = aviso_font.render("Pressiona ENTER para continuar", True, (180, 180, 180))
             self.screen.blit(instru, (200, 340))
 
@@ -93,10 +96,9 @@ class Menu:
                     return
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_RETURN:
-                        # validação do nome
                         if len(nome) == 0:
                             aviso = "⚠️ O nome não pode estar vazio."
-                        elif not re.match(r"^[A-Za-z0-10]{1,11}$", nome):
+                        elif not re.match(r"^[A-Za-z0-9]{1,12}$", nome):
                             aviso = "⚠️ Use apenas letras e números (sem acentos)."
                         else:
                             ativo = False
@@ -106,8 +108,7 @@ class Menu:
                     elif event.key == pygame.K_BACKSPACE:
                         nome = nome[:-1]
                     else:
-                        # só aceitar caracteres válidos e limitar a 10
-                        if len(nome) < 11 and re.match(r"[A-Za-z0-10]", event.unicode):
+                        if len(nome) < 12 and re.match(r"[A-Za-z0-9]", event.unicode):
                             nome += event.unicode
 
     def escolher_dificuldade(self):
@@ -160,15 +161,14 @@ class Menu:
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         pygame.display.set_caption("Snake Menu")
 
-
+    # ---------------------- Ecrã de Recordes -----------------------
     def recordes(self):
-        """Mostra o ecrã de recordes visualmente"""
         manager = RecordsManager()
         pontuacoes = manager.ler_pontuacoes()
 
         voltar_font = pygame.font.SysFont(None, 36)
         titulo_font = pygame.font.SysFont(None, 60)
-        texto_font = pygame.font.SysFont(None, 28)
+        texto_font = pygame.font.SysFont("Consolas", 24)  # monoespaçada para alinhamento
 
         voltar_rect = pygame.Rect(300, 520, 200, 50)
         mostrando = True
@@ -176,31 +176,42 @@ class Menu:
         while mostrando:
             self.screen.fill((20, 20, 20))
 
-            # título
             titulo = titulo_font.render("🏆 Recordes 🏆", True, (255, 255, 0))
-            self.screen.blit(titulo, titulo.get_rect(center=(400, 60)))
+            self.screen.blit(titulo, titulo.get_rect(center=(450, 60)))
 
-            # tabela
+            # cabeçalho
             y = 130
-            cabecalho = texto_font.render("     nome      | Modo         | Dificuldade | Pontos | Data", True, (200, 200, 200))
-            self.screen.blit(cabecalho, (80, y))
+            cabecalho = ["Nome", "Modo", "Dificuldade", "Pontos", "Data"]
+            x_positions = [30, 230, 360,530, 630]
+
+            for i, col in enumerate(cabecalho):
+                label = texto_font.render(col, True, (200, 200, 200))
+                self.screen.blit(label, (x_positions[i], y))
             y += 30
 
+            # linhas
             if not pontuacoes:
-                vazio = texto_font.render("Nenhum recorde registado ainda.", True, (255, 255, 255))
+                vazio = texto_font.render("Nenhum recorde registado ainda.", True, WHITE)
                 self.screen.blit(vazio, (200, 300))
             else:
-                for i, p in enumerate(pontuacoes[:10]):
-                    linha = f"{p['nome']:<10} | {p['modo']:<12} | {p['dificuldade']:<10} | {p['pontuacao']:>5} | {p['data']}"
-                    texto = texto_font.render(linha, True, (255, 255, 255))
-                    self.screen.blit(texto, (80, y))
+                for p in pontuacoes[:10]:
+                    valores = [
+                        p.get('nome', '---'),
+                        p.get('modo', '---'),
+                        p.get('dificuldade', '---'),
+                        str(p.get('pontuacao', 0)),
+                        p.get('data', '---')
+                    ]
+                    for j, val in enumerate(valores):
+                        texto = texto_font.render(val, True, WHITE)
+                        self.screen.blit(texto, (x_positions[j], y))
                     y += 30
 
             # botão voltar
             mouse = pygame.mouse.get_pos()
             cor_botao = (100, 100, 255) if voltar_rect.collidepoint(mouse) else (0, 0, 180)
             pygame.draw.rect(self.screen, cor_botao, voltar_rect, border_radius=10)
-            label_voltar = voltar_font.render("Voltar", True, (255, 255, 255))
+            label_voltar = voltar_font.render("Voltar", True, WHITE)
             self.screen.blit(label_voltar, label_voltar.get_rect(center=voltar_rect.center))
 
             pygame.display.flip()
@@ -215,6 +226,7 @@ class Menu:
 
             pygame.time.Clock().tick(30)
 
+    # ---------------------- Outros ecrãs -----------------------
     def ajuda(self):
         print("Abrir ecrã de ajuda (para implementar depois).")
 

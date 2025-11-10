@@ -1,2 +1,5 @@
 nome | modo | dificuldade | pontuacao | data	
 	BetaTestCam	|	OG Snake	|	Rápido	|	940	|	2025-11-05 22:22	
+	Pai	|	OG Snake	|	Normal	|	140	|	2025-11-05 22:38	
+	BetaTestSamu	|	OG Snake	|	Rápido	|	180	|	2025-11-10 18:55	
+	BetaTestSamu	|	OG Snake	|	Rápido	|	120	|	2025-11-10 19:20	

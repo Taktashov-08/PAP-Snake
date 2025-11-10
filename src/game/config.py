@@ -1,5 +1,5 @@
 # Dimensões da janela
-SCREEN_WIDTH = 800
+SCREEN_WIDTH = 900
 SCREEN_HEIGHT = 600
 
 # Cores RGB
