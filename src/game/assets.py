@@ -2,6 +2,7 @@ import os
 
 class AssetsManager:
     """
+    olá é o gustavo
     Classe responsável por gerir os ficheiros de recursos (imagens, sons, etc.)
     """
     def __init__(self, base_path="assets"):
