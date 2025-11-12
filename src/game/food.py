@@ -12,24 +12,33 @@ class Food:
         self.pos = None
         self.spawn([])
 
-    def spawn(self, occupied_positions):
+    def spawn(self, occupied_positions, obstaculos_pixels=None):
+        """Gera uma nova posição para a comida, evitando obstáculos e posições ocupadas."""
+        if obstaculos_pixels is None:
+            obstaculos_pixels = []
+
         x0, y0, w, h = self.area
         cols = w // self.block
         rows = h // self.block
+
         attempts = 0
         while True:
             gx = random.randint(0, cols - 1)
             gy = random.randint(0, rows - 1)
             x = x0 + gx * self.block
             y = y0 + gy * self.block
-            if (x, y) not in occupied_positions:
+
+            # verifica se está livre (não em obstáculos nem sobre a cobra)
+            if (x, y) not in occupied_positions and (x, y) not in obstaculos_pixels:
                 self.pos = (x, y)
                 return
+
             attempts += 1
             if attempts > 500:
-                # fallback: place anywhere ignoring occupied
+                # fallback — evitar loop infinito
                 self.pos = (x, y)
                 return
+
 
     def draw(self, surface):
         if self.pos is None:

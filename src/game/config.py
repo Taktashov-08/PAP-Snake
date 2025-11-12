@@ -14,7 +14,7 @@ YELLOW = (255, 255, 0)
 BLOCK_SIZE = 20
 
 # Velocidade de atualização (frames por segundo)
-FPS = 10
+FPS = 10 
 
 # Caminho do ficheiro de recordes
 RECORDS_FILE = "records.txt"

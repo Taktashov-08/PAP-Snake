@@ -49,6 +49,11 @@ class Snake:
 
     def head_pos(self):
         return self.segments[0]
+    
+    def set_head_pos(self, pos):
+        """Atualiza manualmente a posição da cabeça (usado em mapas borderless)."""
+        self.segments[0] = pos
+
 
     def draw(self, surface):
         for i, (x, y) in enumerate(self.segments):

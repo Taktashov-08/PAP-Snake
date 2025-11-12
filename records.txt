@@ -1,12 +1,2 @@
 nome | modo | dificuldade | pontuacao | data	
-	BetaTestCam	|	OG Snake	|	Rápido	|	940	|	2025-11-05 22:22	
-	Pai	|	OG Snake	|	Normal	|	140	|	2025-11-05 22:38	
-	BetaTestSamu	|	OG Snake	|	Rápido	|	180	|	2025-11-10 18:55	
-	BetaTestSamu	|	OG Snake	|	Rápido	|	120	|	2025-11-10 19:20	
-	BetaTestSam	|	Mapa 1	|	Normal	|	10	|	2025-11-10 20:33	
-	BetatestSam	|	Mapa 2	|	Normal	|	40	|	2025-11-10 20:34	
-	BetaTestSam	|	Mapa 3	|	Normal	|	50	|	2025-11-10 20:35	
-	BetatestSam	|	OG Snake	|	Normal	|	20	|	2025-11-10 20:38	
-	Test	|	OG Snake	|	Normal	|	60	|	2025-11-10 20:38	
-	teste	|	OG Snake	|	Normal	|	0	|	2025-11-10 20:38	
-	etste	|	OG Snake	|	Normal	|	80	|	2025-11-10 20:39	
+	

@@ -8,43 +8,55 @@ from game.hud import HUD
 from game.score import Score
 
 
-class Game: 
+class Game:
     def __init__(self, player_name="Player", modo="OG Snake", dificuldade="Normal", velocidade_mult=1.0, mapa_tipo=1):
+        import pygame
+        from game.map import Mapas
+
         self.player_name = player_name
         self.modo = modo
         self.dificuldade = dificuldade
-        self.velocidade_mult = velocidade_mult  # 👈 agora o menu pode enviar este valor
+        self.velocidade_mult = velocidade_mult
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        pygame.display.set_caption(f"Snake - {modo}")
 
         self.clock = pygame.time.Clock()
         self.running = True
 
-        # área de jogo
+        # área de jogo (para referência)
         self.play_rect = (0, 0, SCREEN_WIDTH, SCREEN_HEIGHT)
 
         # managers
         self.records = RecordsManager()
         self.hud = HUD(jogador=player_name, modo=modo, dificuldade=dificuldade)
 
-        from game.map import Mapas
+        # mapa
         self.mapa = Mapas(mapa_tipo)
 
-        # multiplicador de pontuação (mantém a tua lógica interna)
+        # multiplicador de pontuação
         mult = 1.0
         if dificuldade in ("Rápido", "Rapido"):
-            mult = 2.0
+            mult = 1.5
         elif dificuldade == "Muito Rápido":
-            mult = 3.0
-
+            mult = 2.0
         self.score = Score(multiplicador=mult)
 
-        # entidades
-        start = (BLOCK_SIZE * 5, BLOCK_SIZE * 5)
-        self.snake = Snake(start_pos=start, block_size=BLOCK_SIZE)
+        # --- entidades (spawn seguro) ---
+        ocupado = set()
+
+        # cobra (spawn seguro, longe de obstáculos)
+        spawn_snake = self.mapa.spawn_seguro(ocupado)
+        self.snake = Snake(start_pos=spawn_snake, block_size=BLOCK_SIZE)
+        ocupado.update(self.snake.segments)
+
+        # comida (spawn seguro, sem colisão com cobra nem obstáculos)
+        spawn_food = self.mapa.spawn_seguro(ocupado)
         self.food = Food(self.play_rect, BLOCK_SIZE)
+        self.food.pos = spawn_food
 
         # parâmetros do jogo
         self.base_fps = FPS
+
 
 
     def handle_events(self):
@@ -67,25 +79,35 @@ class Game:
     def update(self):
         self.snake.update()
 
-        # check wall collision
-        if self.snake.collides_rect(self.play_rect):
+        # --- verificar colisões com bordas / obstáculos ---
+        resultado = self.mapa.verificar_colisao(self.snake.head_pos())
+
+        if resultado is True:
             self.running = False
             self.game_over()
             return
+        elif isinstance(resultado, tuple):
+            # aplica teleporte no modo borderless
+            self.snake.set_head_pos(resultado)
 
-        # check self collision
+        # --- verificar colisão consigo mesma ---
         if self.snake.collides_self():
             self.running = False
             self.game_over()
             return
 
-        # check food collision
+        # --- verificar colisão com comida ---
+        # --- verificar colisão com comida ---
         if self.snake.head_pos() == self.food.pos:
             self.snake.grow()
-            self.score.adicionar_pontos(10)  # base points
+            self.score.adicionar_pontos(10)
             self.hud.atualizar_pontuacao(self.score.obter_pontuacao())
+
             occupied = set(self.snake.segments)
-            self.food.spawn(occupied)
+            obstaculos_pix = set(self.mapa.obstaculos_pixels())  # evita spawn na parede/obstáculo
+            self.food.spawn(occupied, obstaculos_pix)
+
+
 
     def draw(self):
         self.screen.fill(BLACK)
@@ -93,8 +115,20 @@ class Game:
             pygame.draw.rect(self.screen, (100, 100, 100),
                      (x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE))
             
+        # desenhar obstáculos
+        cor_obst = (100, 100, 100) if self.mapa.tipo == 2 else (60, 60, 60)
+        for x, y in self.mapa.obstaculos:
+            pygame.draw.rect(self.screen, cor_obst,
+                     (x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE))
+
+            
         # draw play area border (optional)
         pygame.draw.rect(self.screen, (40,40,40), pygame.Rect(*self.play_rect), 2)
+
+        # draw map obstacles
+        for x, y in self.mapa.obstaculos:
+            pygame.draw.rect(self.screen, (100, 100, 100), (x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE))
+
 
         self.food.draw(self.screen)
         self.snake.draw(self.screen)
