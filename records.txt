@@ -1,2 +1,8 @@
 nome | modo | dificuldade | pontuacao | data	
-	
+		andre	|	OG Snake	|	Normal	|	30	|	2025-11-15 17:14	
+	sofia	|	OG Snake	|	Normal	|	0	|	2025-11-15 17:15	
+	andre	|	OG Snake	|	Normal	|	20	|	2025-11-15 17:15	
+	s	|	OG Snake	|	Normal	|	180	|	2025-11-17 20:23	
+	d	|	OG Snake	|	Normal	|	0	|	2025-11-17 20:23	
+	d	|	OG Snake	|	Normal	|	40	|	2025-11-17 20:24	
+	d	|	OG Snake	|	Normal	|	10	|	2025-11-17 20:25	

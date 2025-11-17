@@ -6,17 +6,17 @@ from game.food import Food
 from game.records import RecordsManager
 from game.hud import HUD
 from game.score import Score
+from game.map import Mapas
 
 
 class Game:
     def __init__(self, player_name="Player", modo="OG Snake", dificuldade="Normal", velocidade_mult=1.0, mapa_tipo=1):
-        import pygame
-        from game.map import Mapas
-
         self.player_name = player_name
         self.modo = modo
         self.dificuldade = dificuldade
         self.velocidade_mult = velocidade_mult
+
+        pygame.init()
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         pygame.display.set_caption(f"Snake - {modo}")
 
@@ -30,10 +30,13 @@ class Game:
         self.records = RecordsManager()
         self.hud = HUD(jogador=player_name, modo=modo, dificuldade=dificuldade)
 
-        # mapa
+        # mapa (mantém compatibilidade: Mapas pode receber int tipo ou caminho)
         self.mapa = Mapas(mapa_tipo)
 
-        # multiplicador de pontuação
+        # usar block size do mapa se existir, senão usar BLOCK_SIZE do config
+        self.block = getattr(self.mapa, "block", BLOCK_SIZE) or BLOCK_SIZE
+
+        # multiplicador de pontuação (mantém a tua lógica)
         mult = 1.0
         if dificuldade in ("Rápido", "Rapido"):
             mult = 1.5
@@ -42,22 +45,23 @@ class Game:
         self.score = Score(multiplicador=mult)
 
         # --- entidades (spawn seguro) ---
-        ocupado = set()
+        ocupado_pixels = set()  # conjunto de posições em pixels já ocupadas
 
         # cobra (spawn seguro, longe de obstáculos)
-        spawn_snake = self.mapa.spawn_seguro(ocupado)
-        self.snake = Snake(start_pos=spawn_snake, block_size=BLOCK_SIZE)
-        ocupado.update(self.snake.segments)
+        spawn_snake = self.mapa.spawn_seguro(ocupado_pixels)
+        # garantir que spawn_snake está em múltiplo do block (Mapas já devolve assim)
+        self.snake = Snake(start_pos=spawn_snake, block_size=self.block)
+        # Snake.segments contém posições em pixels (conforme a tua implementação)
+        ocupado_pixels.update(self.snake.segments)
 
         # comida (spawn seguro, sem colisão com cobra nem obstáculos)
-        spawn_food = self.mapa.spawn_seguro(ocupado)
-        self.food = Food(self.play_rect, BLOCK_SIZE)
-        self.food.pos = spawn_food
+        obstaculos_pix = set(self.mapa.obstaculos_pixels())
+        self.food = Food(self.play_rect, self.block)
+        # spawn inicial: passar obstáculos para garantir comida fora deles
+        self.food.spawn(ocupado_pixels, obstaculos_pix)
 
         # parâmetros do jogo
         self.base_fps = FPS
-
-
 
     def handle_events(self):
         for event in pygame.event.get():
@@ -79,15 +83,16 @@ class Game:
     def update(self):
         self.snake.update()
 
-        # --- verificar colisões com bordas / obstáculos ---
+        # --- verificar colisões com bordas / obstáculos usando o mapa ---
         resultado = self.mapa.verificar_colisao(self.snake.head_pos())
 
         if resultado is True:
+            # colisão fatal
             self.running = False
             self.game_over()
             return
         elif isinstance(resultado, tuple):
-            # aplica teleporte no modo borderless
+            # teleporte (mapa borderless) - resultado já em coords px
             self.snake.set_head_pos(resultado)
 
         # --- verificar colisão consigo mesma ---
@@ -97,48 +102,42 @@ class Game:
             return
 
         # --- verificar colisão com comida ---
-        # --- verificar colisão com comida ---
         if self.snake.head_pos() == self.food.pos:
             self.snake.grow()
             self.score.adicionar_pontos(10)
             self.hud.atualizar_pontuacao(self.score.obter_pontuacao())
 
+            # preparar novos ocupados + obstáculos em pixels e respawn seguro
             occupied = set(self.snake.segments)
-            obstaculos_pix = set(self.mapa.obstaculos_pixels())  # evita spawn na parede/obstáculo
+            obstaculos_pix = set(self.mapa.obstaculos_pixels())
             self.food.spawn(occupied, obstaculos_pix)
-
-
 
     def draw(self):
         self.screen.fill(BLACK)
-        for x, y in self.mapa.obstaculos:
-            pygame.draw.rect(self.screen, (100, 100, 100),
-                     (x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE))
-            
-        # desenhar obstáculos
-        cor_obst = (100, 100, 100) if self.mapa.tipo == 2 else (60, 60, 60)
-        for x, y in self.mapa.obstaculos:
-            pygame.draw.rect(self.screen, cor_obst,
-                     (x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE))
 
-            
-        # draw play area border (optional)
-        pygame.draw.rect(self.screen, (40,40,40), pygame.Rect(*self.play_rect), 2)
+        # desenhar obstáculos (usar block do mapa)
+        cor_obst = (120, 120, 120) if getattr(self.mapa, "tipo", 0) == 2 else (80, 80, 80)
+        for bx, by in self.mapa.obstaculos:
+            pygame.draw.rect(
+                self.screen,
+                cor_obst,
+                (bx * self.block, by * self.block, self.block, self.block)
+            )
 
-        # draw map obstacles
-        for x, y in self.mapa.obstaculos:
-            pygame.draw.rect(self.screen, (100, 100, 100), (x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE))
+        # draw play area border (opcional)
+        pygame.draw.rect(self.screen, (40, 40, 40), pygame.Rect(*self.play_rect), 2)
 
-
+        # desenhar comida e cobra (ambas usam mesmo block)
         self.food.draw(self.screen)
         self.snake.draw(self.screen)
+
         # draw HUD (text)
         self.draw_hud()
         pygame.display.flip()
 
     def draw_hud(self):
         font = pygame.font.SysFont(None, 24)
-        txt = f"{self.hud.jogador} | {self.hud.modo} | {self.hud.dificuldade} | Score: {self.score.obter_pontuacao()}"
+        txt = f"{self.hud.jogador} | {self.hud.modo} | {self.hud.dificuldade} | Score: {self.score.obter_pontuacao()} | Map: {getattr(self.mapa, 'tipo', 'custom')}"
         surf = font.render(txt, True, WHITE)
         self.screen.blit(surf, (10, 10))
 
@@ -148,9 +147,9 @@ class Game:
             self.handle_events()
             self.update()
             self.draw()
-            # FPS scaled by multiplier? use base fps for simplicity
+            # tick com block-based multiplicador de velocidade
             self.clock.tick(int(self.base_fps * self.velocidade_mult))
-        
+
     def game_over(self):
         # save record
         self.records.guardar_pontuacao(self.hud.jogador, self.hud.modo, self.hud.dificuldade, self.score.obter_pontuacao())

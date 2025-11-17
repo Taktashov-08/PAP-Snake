@@ -155,64 +155,78 @@ class Menu:
 
 
 
+        # dentro da classe Menu
+
     def escolher_mapa(self, dificuldade):
-        """Permite ao jogador escolher o mapa antes de iniciar o jogo."""
-        escolher = True
-        fonte = pygame.font.SysFont(None, 40)
+        """
+         Mostra um submenu para escolher o mapa. 'dificuldade' é o tuplo (nome, mult)
+        Quando o jogador clica num mapa, chama iniciar_jogo com o path do ficheiro.
+        """
+        fonte = pygame.font.SysFont(None, 36)
         opcoes = [
-            ("Mapa 1 - Campo Livre", 1),
-            ("Mapa 2 - Obstáculos", 2),
-            ("Mapa 3 - Arena", 3)
+            ("Mapa 1 - Campo Livre", "assets/maps/arena.txt"),         # se quiseres arena sem obstáculos pôs outro ficheiro
+            ("Mapa 2 - Obstáculos (borderless)", "assets/maps/obstaculos.txt"),
+            ("Mapa 3 - Arena (bordas)", "assets/maps/arena.txt")       # podes ter ficheiro diferente se preferires
         ]
-        mapa = None
 
-        while escolher:
-            self.screen.fill((30, 30, 30))
-            txt = fonte.render("Escolhe o Mapa:", True, (255, 255, 255))
-            self.screen.blit(txt, (300, 150))
+        escolhendo = True
+        y = 220
+        rects = []
+        for i, (nome, path) in enumerate(opcoes):
+            rect = pygame.Rect(250, y + i*80, 300, 50)
+            rects.append((rect, path))
+        clock = pygame.time.Clock()
 
-            y = 250
-            for nome, tipo in opcoes:
-                rect = pygame.Rect(300, y, 300, 50)
-                pygame.draw.rect(self.screen, (0, 120, 255), rect, border_radius=10)
-                label = fonte.render(nome, True, (255, 255, 255))
+        while escolhendo and self.running:
+            self.screen.fill(self.bg_color)
+            titulo = fonte.render("Escolhe o mapa:", True, (255,255,255))
+            self.screen.blit(titulo, (300, 120))
+
+            # desenha opções
+            mouse = pygame.mouse.get_pos()
+            for (rect, path), (nome, _) in zip(rects, opcoes):
+                color = (0,120,220) if rect.collidepoint(mouse) else (0,90,180)
+                pygame.draw.rect(self.screen, color, rect, border_radius=8)
+                label = fonte.render(nome, True, (255,255,255))
                 self.screen.blit(label, label.get_rect(center=rect.center))
-                y += 80
 
             pygame.display.flip()
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
-                    escolher = False
+                    escolhendo = False
                     self.running = False
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    mouse = event.pos
-                    if 300 <= mouse[0] <= 600:
-                        if 250 <= mouse[1] <= 300:
-                            mapa = 1
-                        elif 330 <= mouse[1] <= 380:
-                            mapa = 2
-                        elif 410 <= mouse[1] <= 460:
-                            mapa = 3
-                        if mapa:
-                            escolher = False
+                    mpos = event.pos
+                    for rect, path in rects:
+                        if rect.collidepoint(mpos):
+                            escolhendo = False
+                            # inicia jogo com a dificuldade e com o path do mapa escolhido
+                            self.iniciar_jogo(dificuldade, mapa_path=path)
+                            break
+                elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    escolhendo = False
 
-            pygame.time.Clock().tick(30)
-
-        if self.running and mapa:
-            self.iniciar_jogo(dificuldade, mapa)
+            clock.tick(30)
 
 
-
-    def iniciar_jogo(self, dificuldade, mapa_tipo):
+    def iniciar_jogo(self, dificuldade, mapa_path=None):
+        """
+        Inicia o Game. dificuldade é (nome, multiplicador).
+        mapa_path é o caminho para o ficheiro do mapa (string) ou um inteiro tipo.
+        """
         jogador = getattr(self, "player_name", "Jogador")
         modo = "OG Snake"
         nome_dif, mult = dificuldade
-        game = Game(player_name=jogador, modo=modo, dificuldade=nome_dif, velocidade_mult=mult, mapa_tipo=mapa_tipo)
+
+        # aqui passamos o mapa_path para o Game — Mapas aceita path ou int
+        game = Game(player_name=jogador, modo=modo, dificuldade=nome_dif, velocidade_mult=mult, mapa_tipo=mapa_path)
         game.run()
-        # quando voltar do jogo, re-cria o ecrã do menu
+
+        # quando volta, readapta o ecrã do menu
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         pygame.display.set_caption("Snake Menu")
+
 
 
 
