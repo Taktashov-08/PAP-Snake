@@ -1,108 +1,137 @@
+# src/game/menu.py
 import pygame
 import sys
 import re
+import game.config as cfg
+
 from game.engine import Game
 from game.records import RecordsManager
-from game.config import SCREEN_WIDTH, SCREEN_HEIGHT, WHITE, BLACK, GREEN, RED, BLUE
+from game.config import WHITE, BLACK, GREEN, RED, BLUE
 
 pygame.init()
 
+# Logical surface size (fixed game logic resolution)
+LOGICAL_W = cfg.SCREEN_WIDTH
+LOGICAL_H = cfg.SCREEN_HEIGHT
+
 
 class Button:
-    """Classe simples de botão"""
-    def __init__(self, text, x, y, w, h, color, hover_color, action=None):
+    """Botão que trabalha em coordenadas lógicas (colocado em blocos/px lógicos)."""
+    def __init__(self, text, x, y, w, h, color, hover_color, action=None, font_size=36):
+        # x,y,w,h são em coordenadas lógicas (px)
         self.text = text
-        self.rect = pygame.Rect(x, y, w, h)
+        self.rect = pygame.Rect(int(x), int(y), int(w), int(h))
         self.color = color
         self.hover_color = hover_color
         self.action = action
-        self.font = pygame.font.SysFont(None, 40)
+        self.font = pygame.font.SysFont(None, font_size)
 
-    def draw(self, surface):
-        mouse_pos = pygame.mouse.get_pos()
-        color = self.hover_color if self.rect.collidepoint(mouse_pos) else self.color
+    def draw(self, surface, mouse_pos_logical=None):
+        """Desenha o botão na surface lógica. mouse_pos_logical é (x,y) lógico."""
+        if mouse_pos_logical is None:
+            mouse_pos_logical = pygame.mouse.get_pos()
+        is_hover = self.rect.collidepoint(mouse_pos_logical)
+        color = self.hover_color if is_hover else self.color
         pygame.draw.rect(surface, color, self.rect, border_radius=10)
         text_surf = self.font.render(self.text, True, WHITE)
         text_rect = text_surf.get_rect(center=self.rect.center)
         surface.blit(text_surf, text_rect)
 
-    def check_click(self, event):
-        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            if self.rect.collidepoint(event.pos) and self.action:
+    def check_click(self, mouse_pos_logical):
+        """Verifica clique usando coords lógicas. Retorna True se executou action."""
+        if self.rect.collidepoint(mouse_pos_logical):
+            if self.action:
                 self.action()
+            return True
+        return False
 
 
 class Menu:
     def __init__(self):
-        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        # janela real (redimensionável) — mas a lógica é fixa LOGICAL_W x LOGICAL_H
+        self.screen = pygame.display.set_mode((cfg.SCREEN_WIDTH, cfg.SCREEN_HEIGHT), pygame.RESIZABLE)
         pygame.display.set_caption("Snake Menu")
         self.running = True
         self.bg_color = (30, 30, 30)
-        self.font = pygame.font.SysFont(None, 60)
 
-        # Cálculo para centralizar os botões
-        center_x = SCREEN_WIDTH // 2 - 100   # largura do botão = 200 → desloca metade
-        start_y = SCREEN_HEIGHT // 2 - 120    # posiciona o primeiro botão acima do centro
-        spacing = 80                          # espaço vertical entre botões
+        # superfície lógica onde desenhamos sempre
+        self.logical_size = (LOGICAL_W, LOGICAL_H)
+        self.logical_surface = pygame.Surface(self.logical_size)
 
-        # Criação dos botões centralizados
-        self.buttons = [
-            Button("Jogar", center_x, start_y, 200, 60, BLUE, (0, 150, 255), self.jogar),
-            Button("Recordes", center_x, start_y + spacing, 200, 60, GREEN, (0, 200, 100), self.recordes),
-            Button("Ajuda", center_x, start_y + spacing * 2, 200, 60, (255, 165, 0), (255, 200, 0), self.ajuda),
-            Button("Sair", center_x, start_y + spacing * 3, 200, 60, RED, (255, 100, 100), self.sair)
-        ]
+        # fontes
+        self.title_font = pygame.font.SysFont(None, 60)
+        self.big_font = pygame.font.SysFont(None, 40)
+        self.small_font = pygame.font.SysFont(None, 24)
+        self.mono_font = pygame.font.SysFont("Consolas", 24)
 
+        # estado
+        self.player_name = "Player"
 
-    def desenhar_titulo(self):
-        titulo = self.font.render("🐍 Snake Game 🐍", True, WHITE)
-        rect = titulo.get_rect(center=(SCREEN_WIDTH // 2, 100))
-        self.screen.blit(titulo, rect)
+        # cria botões (recenter calcula posições lógicas)
+        self.recenter_buttons()
 
-    # ---------------------- Ações dos botões -----------------------
+    # ---------- helpers ----------
+    def window_to_logical(self, pos):
+        """Converte pos (window coords) -> logical coords (inteiros)."""
+        win_w, win_h = self.screen.get_size()
+        lx = int(pos[0] * self.logical_size[0] / max(1, win_w))
+        ly = int(pos[1] * self.logical_size[1] / max(1, win_h))
+        return (lx, ly)
 
+    def logical_to_window(self, pos):
+        """Converte pos lógica -> window (não muito usado aqui)."""
+        win_w, win_h = self.screen.get_size()
+        wx = int(pos[0] * win_w / self.logical_size[0])
+        wy = int(pos[1] * win_h / self.logical_size[1])
+        return (wx, wy)
+
+    # ---------- desenhos gerais ----------
+    def draw_title(self):
+        t = self.title_font.render("🐍 Snake Game 🐍", True, WHITE)
+        self.logical_surface.blit(t, t.get_rect(center=(self.logical_size[0] // 2, 100)))
+
+    # ---------- ações dos botões (encaminham para submenus) ----------
+    def action_jogar(self):
+        self.jogar()
+
+    def action_recordes(self):
+        self.recordes()
+
+    def action_ajuda(self):
+        self.ajuda()
+
+    def action_sair(self):
+        self.sair()
+
+    # ---------- Submenus (todos usam logical_surface) ----------
     def jogar(self):
-        """Ecrã para introdução do nome do jogador (com validação)"""
+        """Input do nome (centralizado, validado)."""
         nome = ""
-        fonte = pygame.font.SysFont(None, 40)
-        aviso_font = pygame.font.SysFont(None, 28)
-        ativo = True
         aviso = ""
+        ativo = True
+        clock = pygame.time.Clock()
 
-        while ativo:
-            self.screen.fill((30, 30, 30))
+        # input box pos lógica
+        box_w, box_h = 400, 60
+        box_x = self.logical_size[0] // 2 - box_w // 2
+        box_y = 240
 
-            titulo = fonte.render("Insere o teu nome (máx. 12):", True, WHITE)
-            self.screen.blit(titulo, (180, 150))
-
-            caixa_rect = pygame.Rect(250, 220, 300, 50)
-            pygame.draw.rect(self.screen, (100, 100, 100), caixa_rect, border_radius=8)
-            texto_nome = fonte.render(nome, True, WHITE)
-            self.screen.blit(texto_nome, (caixa_rect.x + 10, caixa_rect.y + 10))
-
-            if aviso:
-                aviso_text = aviso_font.render(aviso, True, (255, 100, 100))
-                self.screen.blit(aviso_text, (250, 280))
-
-            instru = aviso_font.render("Pressiona ENTER para continuar", True, (180, 180, 180))
-            self.screen.blit(instru, (200, 340))
-
-            pygame.display.flip()
-
+        while ativo and self.running:
+            # eventos primeiro (permitir fechar)
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
-                    ativo = False
                     self.running = False
                     return
-                elif event.type == pygame.KEYDOWN:
+                if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_RETURN:
                         if len(nome) == 0:
                             aviso = "⚠️ O nome não pode estar vazio."
                         elif not re.match(r"^[A-Za-z0-9]{1,12}$", nome):
                             aviso = "⚠️ Use apenas letras e números (sem acentos)."
                         else:
-                            ativo = False
                             self.player_name = nome
+                            ativo = False
+                            # segue para dificuldade
                             self.escolher_dificuldade()
                             return
                     elif event.key == pygame.K_BACKSPACE:
@@ -110,215 +139,316 @@ class Menu:
                     else:
                         if len(nome) < 12 and re.match(r"[A-Za-z0-9]", event.unicode):
                             nome += event.unicode
+                elif event.type == pygame.VIDEORESIZE:
+                    # actualiza apenas a janela real; lógica é fixa
+                    self.screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
+
+            # desenhar na lógica
+            self.logical_surface.fill(self.bg_color)
+            titulo = self.big_font.render("Insere o teu nome (máx. 12):", True, WHITE)
+            self.logical_surface.blit(titulo, titulo.get_rect(center=(self.logical_size[0]//2, 150)))
+
+            caixa_rect = pygame.Rect(box_x, box_y, box_w, box_h)
+            pygame.draw.rect(self.logical_surface, (100,100,100), caixa_rect, border_radius=8)
+            texto_nome = self.big_font.render(nome, True, WHITE)
+            self.logical_surface.blit(texto_nome, (caixa_rect.x + 12, caixa_rect.y + 12))
+
+            instr = self.small_font.render("Pressiona ENTER para continuar", True, (180,180,180))
+            self.logical_surface.blit(instr, instr.get_rect(center=(self.logical_size[0]//2, box_y + box_h + 40)))
+
+            if aviso:
+                aviso_s = self.small_font.render(aviso, True, (255,100,100))
+                self.logical_surface.blit(aviso_s, aviso_s.get_rect(center=(self.logical_size[0]//2, box_y + box_h + 80)))
+
+            # escala para a janela real
+            win_w, win_h = self.screen.get_size()
+            scaled = pygame.transform.smoothscale(self.logical_surface, (win_w, win_h))
+            self.screen.blit(scaled, (0,0))
+            pygame.display.flip()
+            clock.tick(60)
 
     def escolher_dificuldade(self):
-        escolher = True
-        dif_font = pygame.font.SysFont(None, 40)
-        opcoes = [("Normal", 1.0), ("Rápido", 1.5), ("Muito Rápido", 2.0)]
-        dificuldade = None  # inicializa a variável
+        """Menu de dificuldades (3 opções) - desenhado e centrado na lógica."""
+        difs = [("Normal", 1.0), ("Rápido", 1.5), ("Muito Rápido", 2.0)]
+        # layout lógico
+        start_y = 200
+        btn_w, btn_h = 360, 60
+        spacing = 90
+        rects = []
+        for i, (name, mult) in enumerate(difs):
+            bx = self.logical_size[0]//2 - btn_w//2
+            by = start_y + i*spacing
+            rects.append((pygame.Rect(bx, by, btn_w, btn_h), (name, mult)))
 
-        while escolher:
-            self.screen.fill(self.bg_color)
-            txt = dif_font.render("Escolhe a Dificuldade:", True, WHITE)
-            self.screen.blit(txt, (220, 150))
-
-            y = 250
-            for nome, mult in opcoes:
-                rect = pygame.Rect(300, y, 200, 50)
-                pygame.draw.rect(self.screen, BLUE, rect, border_radius=10)
-                label = dif_font.render(nome, True, WHITE)
-                self.screen.blit(label, label.get_rect(center=rect.center))
-                y += 80
-
-            pygame.display.flip()
-
+        clock = pygame.time.Clock()
+        escolhendo = True
+        while escolhendo and self.running:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
-                    escolher = False
                     self.running = False
-                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    mouse = event.pos
-                    if 300 <= mouse[0] <= 500:
-                        if 250 <= mouse[1] <= 300:
-                            dificuldade = ("Normal", 1.0)
-                        elif 330 <= mouse[1] <= 380:
-                            dificuldade = ("Rápido", 1.5)
-                        elif 410 <= mouse[1] <= 460:
-                            dificuldade = ("Muito Rápido", 2.0)
-                        if dificuldade:
-                            escolher = False
+                    return
+                if event.type == pygame.VIDEORESIZE:
+                    self.screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    # converte mouse coords -> lógica
+                    mpos = self.window_to_logical(event.pos)
+                    for rect, data in rects:
+                        if rect.collidepoint(mpos):
+                            dificuldade = data
+                            escolhendo = False
+                            self.escolher_mapa(dificuldade)
+                            break
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    escolhendo = False
 
-            pygame.time.Clock().tick(30)
+            # draw
+            self.logical_surface.fill(self.bg_color)
+            title = self.big_font.render("Escolhe a Dificuldade:", True, WHITE)
+            self.logical_surface.blit(title, title.get_rect(center=(self.logical_size[0]//2, 120)))
 
-        if self.running and dificuldade:
-            self.escolher_mapa(dificuldade)
+            mpos_log = self.window_to_logical(pygame.mouse.get_pos())
+            for rect, (name, mult) in rects:
+                color = BLUE if rect.collidepoint(mpos_log) else (0,90,180)
+                pygame.draw.rect(self.logical_surface, color, rect, border_radius=10)
+                label = self.big_font.render(name, True, WHITE)
+                self.logical_surface.blit(label, label.get_rect(center=rect.center))
 
-
-
-        # dentro da classe Menu
+            # escala e flip
+            sw, sh = self.screen.get_size()
+            scaled = pygame.transform.smoothscale(self.logical_surface, (sw, sh))
+            self.screen.blit(scaled, (0,0))
+            pygame.display.flip()
+            clock.tick(60)
 
     def escolher_mapa(self, dificuldade):
-        """
-         Mostra um submenu para escolher o mapa. 'dificuldade' é o tuplo (nome, mult)
-        Quando o jogador clica num mapa, chama iniciar_jogo com o path do ficheiro.
-        """
-        fonte = pygame.font.SysFont(None, 36)
+        """Escolha do mapa (3 opções). dificuldade é (nome, mult)."""
         opcoes = [
-            ("Mapa 1 - Campo Livre", "assets/maps/arena.txt"),         # se quiseres arena sem obstáculos pôs outro ficheiro
+            ("Mapa 1 - Campo Livre", "assets/maps/arena.txt"),
             ("Mapa 2 - Obstáculos (borderless)", "assets/maps/obstaculos.txt"),
-            ("Mapa 3 - Arena (bordas)", "assets/maps/arena.txt")       # podes ter ficheiro diferente se preferires
+            ("Mapa 3 - Arena (bordas)", "assets/maps/arena.txt"),
         ]
-
-        escolhendo = True
-        y = 220
+        start_y = 180
+        btn_w, btn_h = 520, 56
+        spacing = 84
         rects = []
-        for i, (nome, path) in enumerate(opcoes):
-            rect = pygame.Rect(250, y + i*80, 300, 50)
-            rects.append((rect, path))
+        for i, (label, path) in enumerate(opcoes):
+            bx = self.logical_size[0]//2 - btn_w//2
+            by = start_y + i*spacing
+            rects.append((pygame.Rect(bx, by, btn_w, btn_h), (label, path)))
+
         clock = pygame.time.Clock()
-
+        escolhendo = True
         while escolhendo and self.running:
-            self.screen.fill(self.bg_color)
-            titulo = fonte.render("Escolhe o mapa:", True, (255,255,255))
-            self.screen.blit(titulo, (300, 120))
-
-            # desenha opções
-            mouse = pygame.mouse.get_pos()
-            for (rect, path), (nome, _) in zip(rects, opcoes):
-                color = (0,120,220) if rect.collidepoint(mouse) else (0,90,180)
-                pygame.draw.rect(self.screen, color, rect, border_radius=8)
-                label = fonte.render(nome, True, (255,255,255))
-                self.screen.blit(label, label.get_rect(center=rect.center))
-
-            pygame.display.flip()
-
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
-                    escolhendo = False
                     self.running = False
-                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    mpos = event.pos
-                    for rect, path in rects:
+                    return
+                if event.type == pygame.VIDEORESIZE:
+                    self.screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    mpos = self.window_to_logical(event.pos)
+                    for rect, (label, path) in rects:
                         if rect.collidepoint(mpos):
                             escolhendo = False
-                            # inicia jogo com a dificuldade e com o path do mapa escolhido
-                            self.iniciar_jogo(dificuldade, mapa_path=path)
-                            break
-                elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                            # inicia o jogo com o mapa escolhido
+                            jogador = getattr(self, "player_name", "Jogador")
+                            nome_dif, mult = dificuldade
+                            game = Game(player_name=jogador, modo="OG Snake", dificuldade=nome_dif, velocidade_mult=mult, mapa_tipo=path)
+                            game.run()
+                            # quando volta, reseta janela do menu (mantém logic fixed)
+                            self.screen = pygame.display.set_mode((cfg.SCREEN_WIDTH, cfg.SCREEN_HEIGHT), pygame.RESIZABLE)
+                            self.recenter_buttons()
+                            return
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                     escolhendo = False
 
-            clock.tick(30)
+            # draw
+            self.logical_surface.fill(self.bg_color)
+            title = self.big_font.render("Escolhe o mapa:", True, WHITE)
+            self.logical_surface.blit(title, title.get_rect(center=(self.logical_size[0]//2, 120)))
 
+            mpos_log = self.window_to_logical(pygame.mouse.get_pos())
+            for rect, (label, path) in rects:
+                color = (0,120,220) if rect.collidepoint(mpos_log) else (0,90,180)
+                pygame.draw.rect(self.logical_surface, color, rect, border_radius=8)
+                label_s = self.big_font.render(label, True, WHITE)
+                self.logical_surface.blit(label_s, label_s.get_rect(center=rect.center))
 
-    def iniciar_jogo(self, dificuldade, mapa_path=None):
-        """
-        Inicia o Game. dificuldade é (nome, multiplicador).
-        mapa_path é o caminho para o ficheiro do mapa (string) ou um inteiro tipo.
-        """
-        jogador = getattr(self, "player_name", "Jogador")
-        modo = "OG Snake"
-        nome_dif, mult = dificuldade
+            sw, sh = self.screen.get_size()
+            scaled = pygame.transform.smoothscale(self.logical_surface, (sw, sh))
+            self.screen.blit(scaled, (0,0))
+            pygame.display.flip()
+            clock.tick(60)
 
-        # aqui passamos o mapa_path para o Game — Mapas aceita path ou int
-        game = Game(player_name=jogador, modo=modo, dificuldade=nome_dif, velocidade_mult=mult, mapa_tipo=mapa_path)
-        game.run()
-
-        # quando volta, readapta o ecrã do menu
-        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-        pygame.display.set_caption("Snake Menu")
-
-
-
-
-    # ---------------------- Ecrã de Recordes -----------------------
     def recordes(self):
         manager = RecordsManager()
-        pontuacoes = manager.ler_pontuacoes()
+        scores = manager.ler_pontuacoes()
 
-        voltar_font = pygame.font.SysFont(None, 36)
-        titulo_font = pygame.font.SysFont(None, 60)
-        texto_font = pygame.font.SysFont("Consolas", 24)  # monoespaçada para alinhamento
-
-        voltar_rect = pygame.Rect(300, 520, 200, 50)
+        clock = pygame.time.Clock()
         mostrando = True
-
-        while mostrando:
-            self.screen.fill((20, 20, 20))
-
-            titulo = titulo_font.render("🏆 Recordes 🏆", True, (255, 255, 0))
-            self.screen.blit(titulo, titulo.get_rect(center=(450, 60)))
-
-            # cabeçalho
-            y = 130
-            cabecalho = ["Nome", "Modo", "Dificuldade", "Pontos", "Data"]
-            x_positions = [30, 230, 360,530, 630]
-
-            for i, col in enumerate(cabecalho):
-                label = texto_font.render(col, True, (200, 200, 200))
-                self.screen.blit(label, (x_positions[i], y))
-            y += 30
-
-            # linhas
-            if not pontuacoes:
-                vazio = texto_font.render("Nenhum recorde registado ainda.", True, WHITE)
-                self.screen.blit(vazio, (200, 300))
-            else:
-                for p in pontuacoes[:10]:
-                    valores = [
-                        p.get('nome', '---'),
-                        p.get('modo', '---'),
-                        p.get('dificuldade', '---'),
-                        str(p.get('pontuacao', 0)),
-                        p.get('data', '---')
-                    ]
-                    for j, val in enumerate(valores):
-                        texto = texto_font.render(val, True, WHITE)
-                        self.screen.blit(texto, (x_positions[j], y))
-                    y += 30
-
-            # botão voltar
-            mouse = pygame.mouse.get_pos()
-            cor_botao = (100, 100, 255) if voltar_rect.collidepoint(mouse) else (0, 0, 180)
-            pygame.draw.rect(self.screen, cor_botao, voltar_rect, border_radius=10)
-            label_voltar = voltar_font.render("Voltar", True, WHITE)
-            self.screen.blit(label_voltar, label_voltar.get_rect(center=voltar_rect.center))
-
-            pygame.display.flip()
-
+        while mostrando and self.running:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
-                    mostrando = False
                     self.running = False
-                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                    if voltar_rect.collidepoint(event.pos):
+                    return
+                if event.type == pygame.VIDEORESIZE:
+                    self.screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    mostrando = False
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    # botão voltar
+                    mpos = self.window_to_logical(event.pos)
+                    if self.back_rect.collidepoint(mpos):
                         mostrando = False
 
-            pygame.time.Clock().tick(30)
+            # draw
+            self.logical_surface.fill(self.bg_color)
+            title = self.big_font.render("🏆 Recordes 🏆", True, (255,255,0))
+            self.logical_surface.blit(title, title.get_rect(center=(self.logical_size[0]//2, 60)))
 
-    # ---------------------- Outros ecrãs -----------------------
+            # cabeçalho
+            y = 120
+            cols_labels = ["Nome", "Modo", "Dificuldade", "Pontos", "Data"]
+            x_pos = [40, 220, 420, 540, 660]
+            for i, c in enumerate(cols_labels):
+                self.logical_surface.blit(self.mono_font.render(c, True, (200,200,200)), (x_pos[i], y))
+            y += 36
+
+            if not scores:
+                self.logical_surface.blit(self.big_font.render("Nenhum recorde registado ainda.", True, WHITE), (180, 260))
+            else:
+                for p in scores[:12]:
+                    values = [
+                        p.get("nome", "---"),
+                        p.get("modo", "---"),
+                        p.get("dificuldade", "---"),
+                        str(p.get("pontuacao", 0)),
+                        p.get("data", "---")
+                    ]
+                    for j, v in enumerate(values):
+                        self.logical_surface.blit(self.mono_font.render(v, True, WHITE), (x_pos[j], y))
+                    y += 28
+
+            # botão voltar (em lógica)
+            self.back_rect = pygame.Rect(self.logical_size[0]//2 - 100, self.logical_size[1] - 80, 200, 50)
+            mouse_log = self.window_to_logical(pygame.mouse.get_pos())
+            cor = (100,100,255) if self.back_rect.collidepoint(mouse_log) else (0,0,180)
+            pygame.draw.rect(self.logical_surface, cor, self.back_rect, border_radius=8)
+            lab = self.small_font.render("Voltar", True, WHITE)
+            self.logical_surface.blit(lab, lab.get_rect(center=self.back_rect.center))
+
+            sw, sh = self.screen.get_size()
+            scaled = pygame.transform.smoothscale(self.logical_surface, (sw, sh))
+            self.screen.blit(scaled, (0,0))
+            pygame.display.flip()
+            clock.tick(30)
+
     def ajuda(self):
-        print("Abrir ecrã de ajuda (para implementar depois).")
-
-    def sair(self):
-        print("A sair do jogo...")
-        self.running = False
-
-    # ---------------------- Loop principal -----------------------
-    def run(self):
-        while self.running:
+        clock = pygame.time.Clock()
+        mostrando = True
+        while mostrando and self.running:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
-                for btn in self.buttons:
-                    btn.check_click(event)
+                    return
+                if event.type == pygame.VIDEORESIZE:
+                    self.screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    mostrando = False
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    mpos = self.window_to_logical(event.pos)
+                    if self.back_rect.collidepoint(mpos):
+                        mostrando = False
 
-            self.screen.fill(self.bg_color)
-            self.desenhar_titulo()
+            self.logical_surface.fill(self.bg_color)
+            lines = [
+                "Ajuda - Controles e Regras",
+                "",
+                "- WASD ou setas para mover a cobra",
+                "- ENTER para confirmar nos formulários",
+                "- ESC para voltar",
+                "- Não use acentos no nome; máximo 12 caracteres"
+            ]
+            y = 120
+            for l in lines:
+                self.logical_surface.blit(self.small_font.render(l, True, WHITE), (60, y))
+                y += 36
+
+            # botão voltar
+            self.back_rect = pygame.Rect(self.logical_size[0]//2 - 100, self.logical_size[1] - 80, 200, 50)
+            mouse_log = self.window_to_logical(pygame.mouse.get_pos())
+            cor = (100,100,255) if self.back_rect.collidepoint(mouse_log) else (0,0,180)
+            pygame.draw.rect(self.logical_surface, cor, self.back_rect, border_radius=8)
+            lab = self.small_font.render("Voltar", True, WHITE)
+            self.logical_surface.blit(lab, lab.get_rect(center=self.back_rect.center))
+
+            sw, sh = self.screen.get_size()
+            scaled = pygame.transform.smoothscale(self.logical_surface, (sw, sh))
+            self.screen.blit(scaled, (0,0))
+            pygame.display.flip()
+            clock.tick(30)
+
+    def sair(self):
+        self.running = False
+
+    # ---------- construção / layout dos botões do menu principal ----------
+    def recenter_buttons(self):
+        btn_w, btn_h = 300, 64
+        center_x = self.logical_size[0]//2 - btn_w//2
+        start_y = self.logical_size[1]//2 - 150
+        spacing = 92
+        labels = ["Jogar", "Recordes", "Ajuda", "Sair"]
+        actions = [self.action_jogar, self.action_recordes, self.action_ajuda, self.action_sair]
+        colors = [BLUE, GREEN, (255,165,0), RED]
+        hcolors = [(0,150,255), (0,200,100), (255,200,0), (255,100,100)]
+        self.buttons = []
+        for i, lab in enumerate(labels):
+            bx = center_x
+            by = start_y + i*spacing
+            b = Button(lab, bx, by, btn_w, btn_h, colors[i], hcolors[i], actions[i], font_size=40)
+            self.buttons.append(b)
+
+    # ---------- loop principal do menu ----------
+    def run(self):
+        clock = pygame.time.Clock()
+        while self.running:
+            # recolhe eventos e processa apenas eventos globais (quit/resize)
+            events = pygame.event.get()
+            for ev in events:
+                if ev.type == pygame.QUIT:
+                    self.running = False
+                if ev.type == pygame.VIDEORESIZE:
+                    # mantemos a lógica fixa; apenas recriamos janela real. O layout seguir-se-á automaticamente
+                    self.screen = pygame.display.set_mode((ev.w, ev.h), pygame.RESIZABLE)
+
+            # desenha tudo na logical surface
+            self.logical_surface.fill(self.bg_color)
+            self.draw_title()
+
+            # calcula mouse lógico
+            mouse_log = self.window_to_logical(pygame.mouse.get_pos())
+
+            # desenha botões e trata hover
             for btn in self.buttons:
-                btn.draw(self.screen)
+                btn.draw(self.logical_surface, mouse_pos_logical=mouse_log)
+
+            # processa clique do rato (transformado em lógico)
+            # se um evento MOUSEBUTTONDOWN ocorreu, processa aqui
+            for ev in events:
+                if ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
+                    ml = self.window_to_logical(ev.pos)
+                    for btn in self.buttons:
+                        if btn.check_click(ml):
+                            # action foi chamada dentro de check_click
+                            break
+
+            # escala para a janela real e blit
+            win_w, win_h = self.screen.get_size()
+            scaled = pygame.transform.smoothscale(self.logical_surface, (win_w, win_h))
+            self.screen.blit(scaled, (0,0))
 
             pygame.display.flip()
-            pygame.time.Clock().tick(60)
+            clock.tick(60)
 
         pygame.quit()
         sys.exit()

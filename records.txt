@@ -6,3 +6,38 @@ nome | modo | dificuldade | pontuacao | data
 	d	|	OG Snake	|	Normal	|	0	|	2025-11-17 20:23	
 	d	|	OG Snake	|	Normal	|	40	|	2025-11-17 20:24	
 	d	|	OG Snake	|	Normal	|	10	|	2025-11-17 20:25	
+	d	|	OG Snake	|	Normal	|	40	|	2025-11-17 21:56	
+	d	|	OG Snake	|	Normal	|	10	|	2025-11-17 22:23	
+	d	|	OG Snake	|	Normal	|	30	|	2025-11-17 22:23	
+	dwa	|	OG Snake	|	Normal	|	0	|	2025-11-17 22:59	
+	daw	|	OG Snake	|	Normal	|	0	|	2025-11-17 22:59	
+	da	|	OG Snake	|	Normal	|	0	|	2025-11-17 23:00	
+	daw	|	OG Snake	|	Muito Rápido	|	0	|	2025-11-17 23:00	
+	dwa	|	OG Snake	|	Normal	|	0	|	2025-11-17 23:00	
+	ad	|	OG Snake	|	Normal	|	0	|	2025-11-17 23:03	
+	da	|	OG Snake	|	Normal	|	0	|	2025-11-17 23:03	
+	adw	|	OG Snake	|	Normal	|	0	|	2025-11-19 10:34	
+	adw	|	OG Snake	|	Rápido	|	0	|	2025-11-19 10:34	
+	ad	|	OG Snake	|	Normal	|	10	|	2025-11-19 10:55	
+	wda	|	OG Snake	|	Normal	|	0	|	2025-11-19 10:56	
+	da	|	OG Snake	|	Normal	|	90	|	2025-11-19 10:57	
+	daw	|	OG Snake	|	Normal	|	10	|	2025-11-19 10:57	
+	awd	|	OG Snake	|	Normal	|	0	|	2025-11-19 11:30	
+	awd	|	OG Snake	|	Normal	|	0	|	2025-11-19 11:30	
+	s	|	OG Snake	|	Normal	|	10	|	2025-11-19 11:49	
+	da	|	OG Snake	|	Normal	|	20	|	2025-11-19 11:49	
+	j	|	OG Snake	|	Normal	|	20	|	2025-11-19 11:50	
+	d	|	OG Snake	|	Normal	|	0	|	2025-11-19 11:50	
+	ad	|	OG Snake	|	Normal	|	0	|	2025-11-19 12:01	
+	adw	|	OG Snake	|	Normal	|	0	|	2025-11-19 12:02	
+	adw	|	OG Snake	|	Normal	|	10	|	2025-11-19 12:23	
+	ad	|	OG Snake	|	Normal	|	20	|	2025-11-19 12:23	
+	a	|	OG Snake	|	Normal	|	20	|	2025-11-19 12:23	
+	da	|	OG Snake	|	Normal	|	0	|	2025-11-19 12:23	
+	ad	|	OG Snake	|	Normal	|	80	|	2025-11-19 12:24	
+	wad	|	OG Snake	|	Normal	|	80	|	2025-11-19 12:29	
+	ad	|	OG Snake	|	Normal	|	0	|	2025-11-19 13:05	
+	awda	|	OG Snake	|	Normal	|	20	|	2025-11-19 13:05	
+	da	|	OG Snake	|	Normal	|	10	|	2025-11-19 13:06	
+	ad	|	OG Snake	|	Normal	|	0	|	2025-11-19 13:06	
+	ad	|	OG Snake	|	Normal	|	10	|	2025-11-19 13:06	
