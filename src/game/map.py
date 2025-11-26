@@ -13,6 +13,8 @@ class Mapas:
 
     def __init__(self, path_or_tipo=1, block_size=None, auto_scale=True):
         # path_or_tipo: int (1,2,3) ou path string para ficheiro
+        self.tipo = path_or_tipo
+
         self.source = path_or_tipo
         self.auto_scale = auto_scale
 
