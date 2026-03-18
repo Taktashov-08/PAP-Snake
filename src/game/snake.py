@@ -1,35 +1,39 @@
+# src/game/snake.py
 import pygame
-from game.config import BLOCK_SIZE
+from game.config import BLOCK_SIZE, SNAKE1_HEAD, SNAKE1_BODY, SNAKE1_BORDER
+
 
 class Snake:
     """
-    Versão Pygame da Snake.
-    Mantém segmentos como lista de (x,y) e desenha retângulos.
+    Cobra com visual dark-clean:
+    - Corpo com fade subtil para a cauda
+    - Cabeça ligeiramente mais clara com indicador de direção discreto
+    - Borda fina e escura
     """
-    def __init__(self, start_pos=(100, 100), block_size=BLOCK_SIZE, color=(0,200,0)):
-        self.block = block_size
-        self.color = color
-        self.segments = [start_pos]  # head is index 0
-        self.direction = (1, 0)  # right
+
+    def __init__(self, start_pos=(100, 100), block_size=BLOCK_SIZE,
+                 color=None, head_color=None, border_color=None):
+        self.block        = block_size
+        self.head_color   = head_color   or (color and _brighten(color, 35)) or SNAKE1_HEAD
+        self.body_color   = color        or SNAKE1_BODY
+        self.border_color = border_color or SNAKE1_BORDER
+
+        self.segments  = [start_pos]
+        self.direction = (1, 0)
         self.grow_next = 0
 
+    # ── Lógica (inalterada) ───────────────────────────────────────────────────
     def set_direction(self, dx, dy):
-        # evita inverter 180 graus
         if len(self.segments) > 1:
             hx, hy = self.segments[0]
-            nx = hx + dx * self.block
-            ny = hy + dy * self.block
-            # se nova cabeca igual ao 2º segmento, ignora (inversão)
-            if (nx, ny) == self.segments[1]:
+            if (hx + dx * self.block, hy + dy * self.block) == self.segments[1]:
                 return
         self.direction = (dx, dy)
 
     def update(self):
-        # move head
         hx, hy = self.segments[0]
         dx, dy = self.direction
-        new_head = (hx + dx * self.block, hy + dy * self.block)
-        self.segments.insert(0, new_head)
+        self.segments.insert(0, (hx + dx * self.block, hy + dy * self.block))
         if self.grow_next > 0:
             self.grow_next -= 1
         else:
@@ -42,25 +46,52 @@ class Snake:
         return self.segments[0] in self.segments[1:]
 
     def collides_rect(self, rect):
-        # rect: (x,y,w,h) check if head outside rect -> used for wall collision
         hx, hy = self.segments[0]
         x, y, w, h = rect
         return not (x <= hx < x + w and y <= hy < y + h)
 
     def head_pos(self):
         return self.segments[0]
-    
+
     def set_head_pos(self, pos):
-        """Atualiza manualmente a posição da cabeça (usado em mapas borderless)."""
         self.segments[0] = pos
 
-
+    # ── Desenho ───────────────────────────────────────────────────────────────
     def draw(self, surface):
+        total = max(len(self.segments), 1)
+        b     = self.block
+        pad   = max(1, b // 8)   # margem interna para separar segmentos visualmente
+
         for i, (x, y) in enumerate(self.segments):
-            r = pygame.Rect(x, y, self.block, self.block)
-            # head slightly brighter
+            inner = pygame.Rect(x + pad, y + pad, b - pad * 2, b - pad * 2)
+
             if i == 0:
-                pygame.draw.rect(surface, (min(self.color[0]+30,255), min(self.color[1]+30,255), min(self.color[2]+30,255)), r)
+                # Cabeça — cor mais clara, bordas arredondadas
+                pygame.draw.rect(surface, self.head_color, inner, border_radius=3)
+                # Olho discreto na direção do movimento
+                _draw_eye(surface, x, y, b, self.direction)
             else:
-                pygame.draw.rect(surface, self.color, r)
-            pygame.draw.rect(surface, (20,20,20), r, 1)  # border
+                # Corpo — fade subtil: 100% → 60% para a cauda
+                t   = 1.0 - (i / total) * 0.40
+                col = tuple(max(0, int(c * t)) for c in self.body_color)
+                pygame.draw.rect(surface, col, inner, border_radius=2)
+
+            # Borda escura (1px)
+            pygame.draw.rect(surface, self.border_color,
+                             pygame.Rect(x, y, b, b), 1)
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+def _brighten(color, amt):
+    return tuple(min(c + amt, 255) for c in color)
+
+def _draw_eye(surface, x, y, b, direction):
+    """Pequeno rectângulo claro na direção do movimento — subtil."""
+    dx, dy = direction
+    cx, cy = x + b // 2, y + b // 2
+    offset = b // 3
+    ex = cx + dx * offset
+    ey = cy + dy * offset
+    r  = max(1, b // 7)
+    pygame.draw.rect(surface, (200, 230, 210),
+                     pygame.Rect(ex - r, ey - r, r * 2, r * 2), border_radius=1)

@@ -27,8 +27,11 @@ class Mapas:
 
         # obstáculos em coordenadas de bloco (col, row)
         self.obstaculos = []
-        self.spawn_snake_block = None
-        self.spawn_food_block = None
+        
+        # --- NOVO: Suporte para dois jogadores ---
+        self.spawn_snake_block = None  # Player 1 (S)
+        self.spawn_snake2_block = None # Player 2 (P)
+        self.spawn_food_block = None   # Comida fixa (F) - opcional
 
         # carregar ou gerar
         if isinstance(path_or_tipo, str) and os.path.exists(path_or_tipo):
@@ -79,9 +82,15 @@ class Mapas:
             tipo = self.source if isinstance(self.source, int) else 1
             self._generate_by_type(tipo)
 
-        # garantir spawn default se não definido
+        # garantir spawn default se não definido (Player 1)
         if self.spawn_snake_block is None:
             self.spawn_snake_block = (self.cols // 2, self.rows // 2)
+            
+        # garantir spawn default se não definido (Player 2)
+        if self.spawn_snake2_block is None:
+            # Se não houver spawn P2, coloca-o no lado oposto ao P1 (ou offset)
+            self.spawn_snake2_block = (max(1, self.cols // 2 + 5), self.rows // 2)
+
         if self.spawn_food_block is None:
             # joga a spawn comida ao lado do centro
             self.spawn_food_block = (max(1, self.cols // 2 - 1), max(1, self.rows // 2))
@@ -92,7 +101,8 @@ class Mapas:
         Carrega um mapa simples de texto:
          '#' -> obstáculo
          '.' -> livre
-         'S' -> spawn da cobra (em blocos)
+         'S' -> spawn da cobra 1 (em blocos)
+         'P' -> spawn da cobra 2 (em blocos) -- NOVO
          'F' -> spawn comida (em blocos)
         O ficheiro é interpretado como grelha; cols/rows atualizam-se à dimensão do ficheiro.
         """
@@ -108,11 +118,9 @@ class Mapas:
         self.rows = len(grid)
         self.cols = maxw
 
-        # recalcular block para caber (opcional) - aqui mantemos self.block
-        # se quiseres forced-fit podes ativar lógica extra
-
         self.obstaculos = []
         self.spawn_snake_block = None
+        self.spawn_snake2_block = None # Reset P2
         self.spawn_food_block = None
 
         for gy, row in enumerate(grid):
@@ -121,6 +129,8 @@ class Mapas:
                     self.obstaculos.append((gx, gy))
                 elif ch == "S":
                     self.spawn_snake_block = (gx, gy)
+                elif ch == "P": # -- NOVO: Detetar Player 2
+                    self.spawn_snake2_block = (gx, gy)
                 elif ch == "F":
                     self.spawn_food_block = (gx, gy)
 
@@ -145,8 +155,7 @@ class Mapas:
             pass
 
         elif t == 2:
-            # mapa com obstaculos "espalhados" (exemplo adaptável)
-            # ajustado para nunca sair da grelha
+            # mapa com obstaculos "espalhados"
             ranges = [
                 (4, 16, 7),
                 (max(0, self.cols-6), self.cols-1, 4),
@@ -181,9 +190,10 @@ class Mapas:
         # remover duplicados e filtrar válidos
         self.obstaculos = [(x,y) for x,y in dict.fromkeys(self.obstaculos) if 0 <= x < self.cols and 0 <= y < self.rows]
 
-        # spawn center por defeito
-        self.spawn_snake_block = (self.cols // 2, self.rows // 2)
-        self.spawn_food_block = (max(1, self.cols // 2 - 1), max(1, self.rows // 2))
+        # spawns padrão se for gerado por código
+        self.spawn_snake_block = (self.cols // 4, self.rows // 2)         # Esquerda
+        self.spawn_snake2_block = (self.cols * 3 // 4, self.rows // 2)    # Direita
+        self.spawn_food_block = (self.cols // 2, self.rows // 2)          # Centro
 
     # ------------------ utilitários ------------------
     def obstaculos_pixels(self):
@@ -200,18 +210,6 @@ class Mapas:
 
         obst_px = self.obstaculos_pixels()
 
-        # 1) spawn definido no ficheiro
-        if self.spawn_snake_block:
-            px = block_to_px(self.spawn_snake_block)
-            if px not in ocupados_pixels and px not in obst_px:
-                return px
-
-        # 2) centro
-        centro_b = (self.cols // 2, self.rows // 2)
-        centro_px = block_to_px(centro_b)
-        if centro_px not in ocupados_pixels and centro_px not in obst_px:
-            return centro_px
-
         # 3) procurar por todas células livres (varrer por bloco)
         livres = []
         for gy in range(self.rows):
@@ -225,6 +223,19 @@ class Mapas:
 
         # fallback
         return (self.block, self.block)
+    
+    # -- Helper novo para obter spawn específico do jogador --
+    def obter_spawn_player(self, player_num):
+        """Devolve o spawn (x_px, y_px) para o player 1 ou 2."""
+        def block_to_px(b):
+            if not b: return (self.block, self.block) # fallback seguro
+            return (b[0] * self.block, b[1] * self.block)
+            
+        if player_num == 1:
+            return block_to_px(self.spawn_snake_block)
+        elif player_num == 2:
+            return block_to_px(self.spawn_snake2_block)
+        return block_to_px(self.spawn_snake_block)
 
     # ------------------ colisões ------------------
     def verificar_colisao(self, pos_px):
