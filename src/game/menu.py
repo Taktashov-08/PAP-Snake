@@ -5,7 +5,6 @@ import sys
 import re
 import game.config as cfg
 import game.config as C
-
 from game.engine import Game
 from game.records import RecordsManager
 
@@ -148,6 +147,7 @@ class Menu:
         if not modo or not self.running: return
 
         if modo == "1v1":
+            # ... mantém o teu código original do 1v1 aqui ...
             p1 = self._input_nome("Nome Player 1 (WASD):", "P1")
             if not p1 or not self.running: return
             p2 = self._input_nome("Nome Player 2 (Setas):", "P2")
@@ -159,7 +159,27 @@ class Menu:
             ], C.BTN_MODE_B, C.BTN_MODE_B_HOV)
             if not mapa or not self.running: return
             self._iniciar(p1, modo, ("Normal", 1.0), mapa, p2)
+
+        elif modo == "Vs AI":
+            # FLUXO PARA O MODO CONTRA O BOT
+            p1 = self._input_nome("O teu nome:", "Player")
+            if not p1 or not self.running: return
+            
+            dif = self._menu_dif() # Escolhe a velocidade da partida
+            if not dif or not self.running: return
+            
+            mapa = self._menu_lista("Escolhe a Arena:", [
+                ("Campo Livre",    "assets/maps/arena.txt"),
+                ("Obstáculos",     "assets/maps/obstaculos.txt"),
+                ("Arena (bordas)", "assets/maps/arena.txt"),
+            ])
+            if not mapa or not self.running: return
+            
+            # Iniciamos o jogo passando "Bot" ou "CPU" como nome do Player 2
+            self._iniciar(p1, modo, dif, mapa, p2="IA_Bot")
+
         else:
+            # OG Snake e Snake Torre
             p1 = self._input_nome("O teu nome:", "Player")
             if not p1 or not self.running: return
             dif = self._menu_dif()
@@ -204,9 +224,10 @@ class Menu:
     # ── Lógica de Submenus (Mini-Loops) ───────────────────────────────────────
     def _menu_modo(self):
         modos = [
-            ("OG Snake",     "OG Snake",    C.BTN_MODE_A, C.BTN_MODE_A_HOV),
-            ("Snake Torre",  "Snake Torre", C.BTN_MODE_A, C.BTN_MODE_A_HOV),
-            ("1v1 Multiplayer", "1v1",      C.BTN_MODE_B, C.BTN_MODE_B_HOV),
+            ("OG Snake",        "OG Snake",    C.BTN_MODE_A, C.BTN_MODE_A_HOV),
+            ("Humano vs IA",    "Vs AI",       C.BTN_MODE_B, C.BTN_MODE_B_HOV), # Novo botão!
+            ("Snake Torre",     "Snake Torre", C.BTN_MODE_A, C.BTN_MODE_A_HOV),
+            ("1v1 Multiplayer", "1v1",         C.BTN_MODE_B, C.BTN_MODE_B_HOV),
         ]
         return self._menu_botoes("Modo de jogo", modos)
 

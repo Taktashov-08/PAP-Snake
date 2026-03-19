@@ -14,3 +14,22 @@
 	wad	|	OG Snake	|	Normal	|	100	|	2026-03-18 21:59	
 	awd	|	OG Snake	|	Normal	|	140	|	2026-03-18 22:01	
 	wad	|	OG Snake	|	Normal	|	60	|	2026-03-18 22:03	
+	sam	|	Vs AI	|	Normal	|	20	|	2026-03-19 23:01	
+	sam	|	Vs AI	|	Normal	|	0	|	2026-03-19 23:04	
+	dam	|	Vs AI	|	Normal	|	0	|	2026-03-19 23:04	
+	sam	|	Vs AI	|	Normal	|	0	|	2026-03-19 23:12	
+	sam	|	Vs AI	|	Normal	|	0	|	2026-03-19 23:13	
+	sam	|	Vs AI	|	Normal	|	0	|	2026-03-19 23:13	
+	sam	|	Vs AI	|	Normal	|	0	|	2026-03-19 23:13	
+	sam	|	Vs AI	|	Normal	|	10	|	2026-03-19 23:13	
+	sam	|	Vs AI	|	Normal	|	20	|	2026-03-19 23:14	
+	sam	|	Vs AI	|	Normal	|	50	|	2026-03-19 23:15	
+	sam	|	Vs AI	|	Normal	|	0	|	2026-03-19 23:15	
+	sam	|	Vs AI	|	Normal	|	0	|	2026-03-19 23:16	
+	sam	|	Vs AI	|	Normal	|	10	|	2026-03-19 23:23	
+	sam	|	Vs AI	|	Normal	|	30	|	2026-03-19 23:24	
+	sam	|	Vs AI	|	Normal	|	20	|	2026-03-19 23:29	
+	sam	|	Vs AI	|	Normal	|	40	|	2026-03-19 23:39	
+	sam	|	Vs AI	|	Normal	|	0	|	2026-03-19 23:41	
+	da	|	OG Snake	|	Normal	|	0	|	2026-03-19 23:42	
+	sam	|	Vs AI	|	Muito Rapido	|	0	|	2026-03-19 23:44	
