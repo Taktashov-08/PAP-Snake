@@ -6,3 +6,10 @@
 	sam	|	Vs AI	|	Normal	|	0	|	2026-03-20 21:18	
 	sam	|	OG Snake	|	Normal	|	0	|	2026-03-20 21:33	
 	sam	|	Vs AI	|	Normal	|	0	|	2026-03-20 21:33	
+	Cams	|	OG Snake	|	Normal	|	10	|	2026-03-22 17:57	
+	Cams	|	Vs AI	|	Normal	|	0	|	2026-03-22 17:58	
+	cams	|	Vs AI	|	Normal	|	0	|	2026-03-22 17:59	
+	cams	|	Vs AI	|	Normal	|	10	|	2026-03-22 17:59	
+	cams	|	Vs AI	|	Normal	|	30	|	2026-03-22 18:00	
+	cams	|	Vs AI	|	Normal	|	20	|	2026-03-22 18:01	
+	cams	|	Vs AI	|	Normal	|	90	|	2026-03-22 18:02	

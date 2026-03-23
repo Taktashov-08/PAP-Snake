@@ -18,7 +18,7 @@ SCREEN_WIDTH, SCREEN_HEIGHT, BLOCK_SIZE = fit_screen_to_grid(
     DESIRED_SCREEN_WIDTH, DESIRED_SCREEN_HEIGHT, GRID_COLS, GRID_ROWS
 )
 
-FPS = 10
+FPS = 7
 
 # ── Modos de jogo (constantes) ────────────────────────────────────────────────
 MODO_OG_SNAKE    = "OG Snake"

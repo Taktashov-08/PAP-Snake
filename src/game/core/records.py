@@ -1,40 +1,54 @@
 # src/game/core/records.py
 import os
 from datetime import datetime
+from game.core.caminhos import caminho_dados_utilizador
 
 
-class RecordsManager:
-    """Guarda e le pontuacoes em ficheiro .txt."""
+class GestorRecordes:
+    """
+    Guarda e le pontuacoes num ficheiro .txt na pasta do utilizador.
+    Funciona tanto em desenvolvimento como dentro de um .exe.
+    """
 
-    def __init__(self, filepath="records.txt"):
-        self.filepath = filepath
-        if not os.path.exists(self.filepath):
-            with open(self.filepath, "w") as f:
+    def __init__(self, nome_ficheiro: str = "records.txt"):
+        # Sempre na pasta do utilizador — nunca junto ao .exe
+        self.caminho = caminho_dados_utilizador(nome_ficheiro)
+
+        if not os.path.exists(self.caminho):
+            with open(self.caminho, "w", encoding="utf-8") as f:
                 f.write("\tnome\t|\tmodo\t|\tdificuldade\t|\tpontuacao\t|\tdata\t\n")
 
-    def guardar_pontuacao(self, nome, modo, dificuldade, pontuacao):
+    def guardar_pontuacao(self, nome: str, modo: str, dificuldade: str, pontuacao: int):
         data = datetime.now().strftime("%Y-%m-%d %H:%M")
-        with open(self.filepath, "a") as f:
+        with open(self.caminho, "a", encoding="utf-8") as f:
             f.write(f"\t{nome}\t|\t{modo}\t|\t{dificuldade}\t|\t{pontuacao}\t|\t{data}\t\n")
 
-    def ler_pontuacoes(self, modo_filtrar=None):
+    def ler_pontuacoes(self, filtro_modo: str = None) -> list:
         pontuacoes = []
-        if not os.path.exists(self.filepath):
+        if not os.path.exists(self.caminho):
             return pontuacoes
-        with open(self.filepath, "r") as f:
+
+        with open(self.caminho, "r", encoding="utf-8") as f:
             for linha in f.readlines()[1:]:
                 partes = [p.strip() for p in linha.split("|")]
                 if len(partes) == 5:
                     nome, modo, dificuldade, pontuacao, data = partes
-                    if modo_filtrar is None or modo_filtrar == modo:
+                    if filtro_modo is None or filtro_modo == modo:
                         pontuacoes.append({
-                            "nome": nome, "modo": modo,
+                            "nome":        nome,
+                            "modo":        modo,
                             "dificuldade": dificuldade,
-                            "pontuacao": int(pontuacao), "data": data
+                            "pontuacao":   int(pontuacao),
+                            "data":        data,
                         })
+
         pontuacoes.sort(key=lambda x: x["pontuacao"], reverse=True)
         return pontuacoes
 
     def limpar_registos(self):
-        with open(self.filepath, "w") as f:
+        with open(self.caminho, "w", encoding="utf-8") as f:
             f.write("\tnome\t|\tmodo\t|\tdificuldade\t|\tpontuacao\t|\tdata\t\n")
+
+
+# Alias retrocompativel — o resto do codigo usa RecordsManager
+RecordsManager = GestorRecordes
