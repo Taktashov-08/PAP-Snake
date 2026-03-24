@@ -23,7 +23,7 @@ class GestorRecordes:
         with open(self.caminho, "a", encoding="utf-8") as f:
             f.write(f"\t{nome}\t|\t{modo}\t|\t{dificuldade}\t|\t{pontuacao}\t|\t{data}\t\n")
 
-    def ler_pontuacoes(self, filtro_modo: str = None) -> list:
+    def ler_pontuacoes(self, modo_filtrar: str = None) -> list:
         pontuacoes = []
         if not os.path.exists(self.caminho):
             return pontuacoes
@@ -33,7 +33,7 @@ class GestorRecordes:
                 partes = [p.strip() for p in linha.split("|")]
                 if len(partes) == 5:
                     nome, modo, dificuldade, pontuacao, data = partes
-                    if filtro_modo is None or filtro_modo == modo:
+                    if modo_filtrar is None or modo_filtrar == modo:
                         pontuacoes.append({
                             "nome":        nome,
                             "modo":        modo,
