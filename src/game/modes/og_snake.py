@@ -1,9 +1,5 @@
 # src/game/modes/og_snake.py
-"""
-Modo clássico de um jogador com efeitos de partículas:
-  - Explosão de comida ao comer
-  - Flash e explosão de morte antes do game_over
-"""
+"""Modo clássico de um jogador."""
 from __future__ import annotations
 
 import pygame
@@ -13,7 +9,6 @@ from game.entities.food   import Food
 from game.modes.base_mode import BaseModo
 from game.config          import FOOD_COLOR
 
-# Mapeamento tecla → direcção (dx, dy)
 _KEYS: dict = {
     pygame.K_w:     (0, -1), pygame.K_UP:    (0, -1),
     pygame.K_s:     (0,  1), pygame.K_DOWN:  (0,  1),
@@ -23,22 +18,34 @@ _KEYS: dict = {
 
 
 class OgSnake(BaseModo):
-    """Modo clássico de um jogador."""
 
     def __init__(self, engine) -> None:
         super().__init__(engine)
-        spawn      = self.engine.mapa.obter_spawn_player(1)
-        self.snake = Snake(start_pos=spawn, block_size=self.engine.block)
-
-        obst = set(self.engine.mapa.obstaculos_pixels())
-        f    = Food(self.engine.play_rect, self.engine.block)
+        self.snake = Snake(
+            start_pos=engine.mapa.obter_spawn_player(1),
+            block_size=engine.block,
+        )
+        obst = set(engine.mapa.obstaculos_pixels())
+        f    = Food(engine.play_rect, engine.block)
         f.spawn(set(self.snake.segments), obst)
         self.foods = [f]
 
-    # ── Segmentos ocupados (para spawn seguro de comida) ──────────────────────
+    # ── BaseModo ──────────────────────────────────────────────────────────────
 
     def _segmentos_ocupados(self) -> set:
         return set(self.snake.segments)
+
+    def _snake_heads(self) -> list:
+        return [self.snake.head_pos()]
+
+    def hud_info(self) -> dict:
+        return {
+            "score":      self.engine.score.obter_pontuacao(),
+            "length":     len(self.snake.segments),
+            "max_length": 60,
+            "fps_ref":    max(1, int(self.engine.base_fps
+                                     * self.engine.velocidade_mult)),
+        }
 
     # ── Input ─────────────────────────────────────────────────────────────────
 
@@ -47,62 +54,48 @@ class OgSnake(BaseModo):
             self.snake.set_direction(*_KEYS[event.key])
             self.started = True
 
-    # ── Update de lógica (chamado a FPS de jogo fixo) ─────────────────────────
+    # ── Lógica ────────────────────────────────────────────────────────────────
 
     def update(self) -> None:
-        # Aguardar flash de morte
         if self._dying:
-            self._tick_morte(
-                self.snake,
-                callback=self.engine.game_over,
-            )
+            self._tick_morte(self.snake, self.engine.game_over)
             return
-
         if not self.started:
             return
 
         self.snake.update()
         head = self.snake.head_pos()
 
-        # Colisão com mapa
         res = self.engine.mapa.verificar_colisao(head)
         if res is True:
-            self._on_death()
-            return
+            self._on_death(); return
         if isinstance(res, tuple):
             self.snake.set_head_pos(res)
 
-        # Auto-colisão
         if self.snake.collides_self():
-            self._on_death()
-            return
+            self._on_death(); return
 
-        # Comer comida
         for comida in self.foods:
             if head == comida.pos:
                 self.snake.grow()
-                pts = 10
-                self.engine.score.adicionar_pontos(pts)
-                self.engine.hud.atualizar_pontuacao(
+                pts = self.engine.score.obter_pontuacao() + 10
+                self.engine.score.adicionar_pontos(10)
+                self.engine.hud.set_score(
                     self.engine.score.obter_pontuacao()
                 )
-                # Efeito de partículas
                 self.engine.particles.emit_food_burst(
                     comida.pos, FOOD_COLOR, self.engine.block
                 )
                 self.food_spawn_safe(comida, self.foods)
 
     def _on_death(self) -> None:
-        """Emite partículas de morte e inicia o delay de flash."""
         self.engine.particles.emit_death(
             self.snake.segments, self.snake.body_color, self.engine.block
         )
+        self.engine.trigger_shake(intensity=7.0, duration=0.32)
         self._iniciar_morte(self.snake)
 
-    # ── Update visual (chamado a 60 fps) ──────────────────────────────────────
-
     def visual_update(self, dt: float) -> None:
-        """Anima a comida de forma suave e independente do FPS de lógica."""
         for f in self.foods:
             f.update(dt)
 

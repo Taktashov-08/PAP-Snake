@@ -1,10 +1,15 @@
 # src/game/config.py
-# Definicoes globais: dimensoes, grelha, paleta de cores e constantes de modo.
+# Definições globais: dimensões, grelha, paleta de cores e constantes de modo.
 
 DESIRED_SCREEN_WIDTH  = 900
 DESIRED_SCREEN_HEIGHT = 600
 GRID_COLS = 45
 GRID_ROWS  = 30
+
+# ── Sidebar HUD ───────────────────────────────────────────────────────────────
+# Largura do painel lateral. O engine adiciona este valor à superfície lógica;
+# a área de jogo (mapa, cobras, comida) continua com SCREEN_WIDTH × SCREEN_HEIGHT.
+SIDEBAR_W = 160
 
 def fit_screen_to_grid(desired_w, desired_h, cols=GRID_COLS, rows=GRID_ROWS):
     block_from_w = desired_w // cols
@@ -20,24 +25,30 @@ SCREEN_WIDTH, SCREEN_HEIGHT, BLOCK_SIZE = fit_screen_to_grid(
 
 FPS = 7
 
-# ── Modos de jogo (constantes) ────────────────────────────────────────────────
+# ── Modos de jogo ─────────────────────────────────────────────────────────────
 MODO_OG_SNAKE    = "OG Snake"
 MODO_1V1         = "1v1"
 MODO_VS_AI       = "Vs AI"
 MODO_SNAKE_TORRE = "Snake Torre"
 
-# ── Dificuldades -> multiplicador de velocidade ───────────────────────────────
+# ── Dificuldades → multiplicador de velocidade ────────────────────────────────
 DIFICULDADES = {
     "Normal":       1.0,
     "Rapido":       1.5,
     "Muito Rapido": 2.0,
 }
 
-# ── Fundo & Superficies ───────────────────────────────────────────────────────
+# ── Fundo & Superfícies ───────────────────────────────────────────────────────
 BG_DARK      = (18,  19,  24)
 BG_PANEL     = (24,  26,  33)
 BG_INPUT     = (30,  32,  40)
 GRID_LINE    = (26,  28,  36)
+
+# ── Sidebar / HUD ─────────────────────────────────────────────────────────────
+HUD_SIDEBAR_BG    = (20,  22,  30)    # fundo do painel lateral
+HUD_SIDEBAR_SEP   = (38,  42,  58)    # linha separadora vertical
+HUD_SECTION_LINE  = (34,  38,  52)    # divisor entre secções
+HUD_LABEL         = (90,  95, 115)    # etiquetas (pequenas, discretas)
 
 # ── Paredes ───────────────────────────────────────────────────────────────────
 WALL_FACE       = (38,  42,  58)
@@ -63,7 +74,7 @@ FOOD_COLOR      = (220, 120,  60)
 FOOD_BORDER     = (150,  75,  30)
 FOOD_HIGHLIGHT  = (240, 160, 100)
 
-# ── HUD ───────────────────────────────────────────────────────────────────────
+# ── HUD (texto) ───────────────────────────────────────────────────────────────
 HUD_BG        = (18,  19,  24)
 HUD_BORDER    = (40,  44,  60)
 HUD_TEXT      = (170, 175, 192)
