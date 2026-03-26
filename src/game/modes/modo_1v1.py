@@ -1,5 +1,7 @@
 # src/game/modes/modo_1v1.py
-"""Modo multijogador local (2 humanos)."""
+"""
+Modo multijogador local (2 humanos) com partículas, flash de morte e screen shake.
+"""
 from __future__ import annotations
 
 import pygame
@@ -21,59 +23,46 @@ _KEYS_P2: dict = {
 
 
 class Modo1v1(BaseModo):
+    """Modo multijogador local (2 humanos)."""
 
     def __init__(self, engine) -> None:
         super().__init__(engine)
-        self.p1_ready         = False
-        self.p2_ready         = False
+        self.p1_ready = False
+        self.p2_ready = False
         self._p1_dead_pending = False
         self._p2_dead_pending = False
         self._death_result    = ""
 
         ocupado = set()
+
         self.snake = Snake(
-            start_pos=engine.mapa.obter_spawn_player(1),
-            block_size=engine.block,
+            start_pos=self.engine.mapa.obter_spawn_player(1),
+            block_size=self.engine.block,
         )
         ocupado.update(self.snake.segments)
 
         self.snake2 = Snake(
-            start_pos=engine.mapa.obter_spawn_player(2),
-            block_size=engine.block,
+            start_pos=self.engine.mapa.obter_spawn_player(2),
+            block_size=self.engine.block,
             color=cfg.SNAKE2_BODY,
             head_color=cfg.SNAKE2_HEAD,
             border_color=cfg.SNAKE2_BORDER,
         )
         ocupado.update(self.snake2.segments)
 
-        obst = set(engine.mapa.obstaculos_pixels())
+        obst = set(self.engine.mapa.obstaculos_pixels())
         self.foods = []
         for _ in range(2):
-            f = Food(engine.play_rect, engine.block)
+            f = Food(self.engine.play_rect, self.engine.block)
             outras = {fd.pos for fd in self.foods if fd.pos}
             f.spawn(ocupado | outras, obst)
             self.foods.append(f)
-
-    # ── BaseModo ──────────────────────────────────────────────────────────────
 
     def _segmentos_ocupados(self) -> set:
         return set(self.snake.segments) | set(self.snake2.segments)
 
     def _snake_heads(self) -> list:
         return [self.snake.head_pos(), self.snake2.head_pos()]
-
-    def hud_info(self) -> dict:
-        return {
-            "p1_name":   self.engine.player_name,
-            "p2_name":   self.engine.player2_name,
-            "p1_length": len(self.snake.segments),
-            "p2_length": len(self.snake2.segments),
-            "max_length": 60,
-            "p1_ready":  self.p1_ready,
-            "p2_ready":  self.p2_ready,
-        }
-
-    # ── Input ─────────────────────────────────────────────────────────────────
 
     def handle_event(self, event: pygame.event.Event) -> None:
         if event.type != pygame.KEYDOWN:
@@ -85,9 +74,8 @@ class Modo1v1(BaseModo):
             self.snake2.set_direction(*_KEYS_P2[event.key])
             self.p2_ready = True
 
-    # ── Lógica ────────────────────────────────────────────────────────────────
-
     def update(self) -> None:
+        # ── Delay de morte ─────────────────────────────────────────────
         if self._dying:
             done1 = self.snake.tick_death_flash()  if self._p1_dead_pending else True
             done2 = self.snake2.tick_death_flash() if self._p2_dead_pending else True
@@ -165,8 +153,6 @@ class Modo1v1(BaseModo):
         for f in self.foods:
             f.update(dt)
 
-    # ── Desenho ───────────────────────────────────────────────────────────────
-
     def draw(self, surface: pygame.Surface) -> None:
         self.snake.draw(surface)
         self.snake2.draw(surface)
@@ -176,15 +162,22 @@ class Modo1v1(BaseModo):
             except Exception:
                 pass
 
-        # Mensagem de espera — apenas na área de jogo
+        f_p = pygame.font.SysFont(None, 30)
+        lw  = surface.get_width()
+        cx  = lw // 2
+        cy  = surface.get_height() // 2
+
         if not self.p1_ready or not self.p2_ready:
-            f_p = pygame.font.SysFont(None, 30)
-            # Usar apenas a largura da área de jogo (sem sidebar)
-            import game.config as cfg
-            play_w = cfg.SCREEN_WIDTH
-            cx = play_w // 2
-            cy = surface.get_height() // 2
             msg = f_p.render("Escolham a vossa direção!", True, (255, 255, 255))
-            surface.blit(msg, (cx - msg.get_width() // 2, cy - 60))
+            surface.blit(msg, (cx - msg.get_width() // 2, cy - 80))
+            s1 = f_p.render(
+                "PRONTO!" if self.p1_ready else "P1 (WASD): Espera...",
+                True, (0, 255, 0),
+            )
+            surface.blit(s1, (lw // 4 - s1.get_width() // 2, cy + 20))
+            p2t = ("PRONTO!" if self.p2_ready
+                   else f"{self.engine.player2_name} (Setas): Espera...")
+            s2 = f_p.render(p2t, True, (0, 150, 255))
+            surface.blit(s2, (3 * lw // 4 - s2.get_width() // 2, cy + 20))
         elif self.countdown_active:
             self._draw_countdown(surface)
