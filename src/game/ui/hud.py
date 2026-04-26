@@ -8,7 +8,6 @@ import pygame
 
 import game.config as C
 
-# ── Constantes de layout ──────────────────────────────────────────────────────
 _PAD:          int   = 12
 _SEC_GAP:      int   = 10
 _POP_DURATION: float = 0.40
@@ -346,13 +345,6 @@ class HUD:
         self._f_value = pygame.font.SysFont("Consolas", 18)
         self._f_name  = pygame.font.SysFont("Consolas", 20, bold=True)
         self._f_big   = pygame.font.SysFont("Consolas", 36, bold=True)
-
-    # ── Compatibilidade com chamadas antigas ──────────────────────────────────
-
-    def draw(self, surface, score=None, modo_override=None,
-             pts_p1=None, pts_p2=None) -> None:
-        """Stub de compatibilidade — o engine novo chama draw_sidebar()."""
-        pass
 
 
 # ── Utilitários ───────────────────────────────────────────────────────────────

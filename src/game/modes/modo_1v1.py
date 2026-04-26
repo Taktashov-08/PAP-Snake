@@ -64,6 +64,17 @@ class Modo1v1(BaseModo):
     def _snake_heads(self) -> list:
         return [self.snake.head_pos(), self.snake2.head_pos()]
 
+    def hud_info(self) -> dict:
+        return {
+            "p1_name":   self.engine.player_name,
+            "p2_name":   self.engine.player2_name,
+            "p1_length": len(self.snake.segments),
+            "p2_length": len(self.snake2.segments),
+            "max_length": 60,
+            "p1_ready":  self.p1_ready,
+            "p2_ready":  self.p2_ready,
+        }
+
     def handle_event(self, event: pygame.event.Event) -> None:
         if event.type != pygame.KEYDOWN:
             return
@@ -75,7 +86,6 @@ class Modo1v1(BaseModo):
             self.p2_ready = True
 
     def update(self) -> None:
-        # ── Delay de morte ─────────────────────────────────────────────
         if self._dying:
             done1 = self.snake.tick_death_flash()  if self._p1_dead_pending else True
             done2 = self.snake2.tick_death_flash() if self._p2_dead_pending else True

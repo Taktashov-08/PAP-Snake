@@ -1,22 +1,24 @@
 # src/game/core/nomes.py
-import os
+from game.core.caminhos import caminho_dados_utilizador
 
 _FICHEIRO = "nomes.txt"
-_MAX      = 20   # máximo de nomes guardados
+_MAX      = 20
 
 
 class GestorNomes:
     """Persiste nomes de jogadores para reutilização entre sessões."""
 
     def __init__(self, ficheiro=_FICHEIRO):
-        self.ficheiro = ficheiro
+        # Usa caminho_dados_utilizador para funcionar correctamente dentro do .exe
+        self.ficheiro = caminho_dados_utilizador(ficheiro)
 
     def carregar(self):
         """Devolve lista de nomes (mais recente primeiro)."""
-        if not os.path.exists(self.ficheiro):
+        try:
+            with open(self.ficheiro, "r", encoding="utf-8") as f:
+                return [l.strip() for l in f if l.strip()]
+        except FileNotFoundError:
             return []
-        with open(self.ficheiro, "r", encoding="utf-8") as f:
-            return [l.strip() for l in f if l.strip()]
 
     def guardar(self, nome):
         """Guarda nome, movendo-o para o topo se já existir."""

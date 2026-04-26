@@ -1,13 +1,12 @@
 # src/game/modes/player_vs_ai.py
 """
 Jogador humano contra Bot com IA (A* + Flood Fill + táticas).
-Boost panel removido — toda a info de boost está agora no HUD lateral.
 """
 from __future__ import annotations
 
 import heapq
 from collections import deque
-from typing import Dict, List, Optional, Tuple
+from typing import List, Tuple
 
 import pygame
 
@@ -15,6 +14,7 @@ from game.entities.snake  import Snake
 from game.entities.food   import Food
 from game.entities.boost  import Boost
 from game.modes.base_mode import BaseModo, _DEATH_DELAY_TICKS
+from game.core.score      import Score
 from game.config          import FOOD_COLOR
 
 TODAS_DIRECOES = [(1, 0), (-1, 0), (0, 1), (0, -1)]
@@ -47,47 +47,59 @@ class PlayerVsAI(BaseModo):
         self._mapa = engine.mapa
         self._obst = self._mapa._obst_set
 
-        self.cobra = Snake(self._mapa.obter_spawn_player(1), engine.block)
+        # snake = cobra do jogador (consistente com OgSnake e Modo1v1)
+        self.snake = Snake(self._mapa.obter_spawn_player(1), engine.block)
         self.bot   = Snake(self._mapa.obter_spawn_player(2), engine.block)
         self.bot.body_color   = (200, 60,  60)
         self.bot.head_color   = (230, 100, 100)
         self.bot.border_color = (120, 20,  20)
 
-        self.comida      = Food(engine.play_rect, engine.block)
-        self.comidas     = [self.comida]
         self.boost_vel   = Boost("velocidade", engine.play_rect, engine.block)
         self.boost_imune = Boost("imunidade",  engine.play_rect, engine.block)
 
-        self.food_spawn_safe(self.comida, self.comidas)
+        self.comidas = [Food(engine.play_rect, engine.block)]
+        self.food_spawn_safe(self.comidas[0], self.comidas)
         self._spawn_item(self.boost_vel)
         self._spawn_item(self.boost_imune)
 
-        self.pontos_bot = 0
+        # Pontuação do bot reutiliza o mesmo multiplicador de dificuldade do jogador
+        self._score_bot = Score(multiplicador=engine.score.multiplicador)
+
         self.boosts_bot     = {"velocidade": 0, "imunidade": 0}
         self.boosts_jogador = {"velocidade": 0, "imunidade": 0}
 
         self._blocos_boost_vel   = self._boost_para_blocos(self.boost_vel)
         self._blocos_boost_imune = self._boost_para_blocos(self.boost_imune)
-        self._vel_tick           = 0
-        self.p1_pronto           = False
+
+        # Contadores de sub-tick para boost de velocidade (jogador e bot independentes)
+        self._vel_tick     = 0
+        self._vel_tick_bot = 0
+
+        self.p1_ready = False
 
         self._jogador_morreu_flag = False
         self._bot_morreu_flag     = False
 
+    # ── Propriedade de compatibilidade ────────────────────────────────────────
+
+    @property
+    def pontos_bot(self) -> int:
+        """Pontuação actual do bot (com multiplicador de dificuldade aplicado)."""
+        return self._score_bot.obter_pontuacao()
+
     # ── BaseModo ──────────────────────────────────────────────────────────────
 
     def _segmentos_ocupados(self) -> set:
-        return set(self.cobra.segments) | set(self.bot.segments)
+        return set(self.snake.segments) | set(self.bot.segments)
 
     def _snake_heads(self) -> List[Tuple[int, int]]:
-        return [self.cobra.head_pos(), self.bot.head_pos()]
+        return [self.snake.head_pos(), self.bot.head_pos()]
 
     def hud_info(self) -> dict:
-        """Fornece ao HUD lateral: score, comprimentos, boosts e info do bot."""
         fps = max(1, int(self.engine.base_fps * self.engine.velocidade_mult))
         return {
             "score":             self.engine.score.obter_pontuacao(),
-            "length":            len(self.cobra.segments),
+            "length":            len(self.snake.segments),
             "bot_length":        len(self.bot.segments),
             "max_length":        60,
             "boost_vel_ticks":   self.boosts_jogador["velocidade"],
@@ -102,7 +114,7 @@ class PlayerVsAI(BaseModo):
 
     def _spawn_item(self, item) -> None:
         ocupados = self._segmentos_ocupados() | self._zona_exclusao()
-        for outro in [self.comida, self.boost_vel, self.boost_imune]:
+        for outro in [self.comidas[0], self.boost_vel, self.boost_imune]:
             if outro is not item and getattr(outro, "pos", None):
                 ocupados.add(outro.pos)
         item.spawn(ocupados, self._mapa.obstaculos_pixels())
@@ -158,8 +170,8 @@ class PlayerVsAI(BaseModo):
 
     def handle_event(self, event):
         if event.type == pygame.KEYDOWN and event.key in self._TECLAS:
-            self.cobra.set_direction(*self._TECLAS[event.key])
-            self.p1_pronto = True
+            self.snake.set_direction(*self._TECLAS[event.key])
+            self.p1_ready = True
 
     # ── Update ────────────────────────────────────────────────────────────────
 
@@ -168,7 +180,7 @@ class PlayerVsAI(BaseModo):
             return
 
         if self._dying:
-            j_done = self.cobra.tick_death_flash() if self._jogador_morreu_flag else True
+            j_done = self.snake.tick_death_flash() if self._jogador_morreu_flag else True
             b_done = self.bot.tick_death_flash()   if self._bot_morreu_flag     else True
             self._death_timer += 1
             if (j_done and b_done) or self._death_timer >= _DEATH_DELAY_TICKS:
@@ -181,7 +193,7 @@ class PlayerVsAI(BaseModo):
                 self.engine.game_over_vsai(resultado, pts, self.pontos_bot)
             return
 
-        if self.p1_pronto and not self.countdown_active and not self.started:
+        if self.p1_ready and not self.countdown_active and not self.started:
             self._iniciar_countdown()
         self._tick_countdown()
         if not self.started:
@@ -189,23 +201,93 @@ class PlayerVsAI(BaseModo):
 
         self._tick_boosts()
         self._logica_bot()
-        self.cobra.update()
 
+        # ── Movimento do jogador ──────────────────────────────────────────────
+        # Boost de velocidade: 2 steps em 2 de cada 3 ticks (≈1.67×).
+        # A posição intermédia é verificada para evitar tunneling na comida.
+        self.snake.update()
         if self._jogador_com_velocidade():
             self._vel_tick = (self._vel_tick + 1) % 3
-            if self._vel_tick != 0 and not self._colisao_fatal_jogador():
-                self.cobra.update()
+            if self._vel_tick != 0:
+                if not self._colisao_fatal_jogador():
+                    self._verificar_comida_jogador()
+                    self.snake.update()
 
+        # ── Movimento do bot ──────────────────────────────────────────────────
+        # Mesma lógica de sub-tick: quando o bot tem boost de velocidade,
+        # avança 2 blocos em 2 de cada 3 ticks — simétrico ao jogador.
         self.bot.update()
+        if self._com_velocidade():
+            self._vel_tick_bot = (self._vel_tick_bot + 1) % 3
+            if self._vel_tick_bot != 0:
+                if not self._colisao_fatal_bot():
+                    self._verificar_comida_bot()
+                    self.bot.update()
+
         self._verificar_colisoes()
 
-    def _colisao_fatal_jogador(self):
-        cabeca = self.cobra.head_pos()
+    # ── Colisões fatais individuais ───────────────────────────────────────────
+
+    def _colisao_fatal_jogador(self) -> bool:
+        cabeca = self.snake.head_pos()
         col    = self._mapa.verificar_colisao(cabeca)
         if isinstance(col, tuple):
-            self.cobra.set_head_pos(col)
+            self.snake.set_head_pos(col)
             return False
-        return (col is True and not self._jogador_imune()) or self.cobra.collides_self()
+        return (col is True and not self._jogador_imune()) or self.snake.collides_self()
+
+    def _colisao_fatal_bot(self) -> bool:
+        cabeca = self.bot.head_pos()
+        col    = self._mapa.verificar_colisao(cabeca)
+        if isinstance(col, tuple):
+            self.bot.set_head_pos(col)
+            return False
+        return (col is True and not self._imune()) or self.bot.collides_self()
+
+    # ── Verificação de comida intermédia (anti-tunneling) ─────────────────────
+
+    def _verificar_comida_jogador(self) -> None:
+        """Verifica comida e boosts na posição intermédia do jogador durante boost."""
+        cabeca = self.snake.head_pos()
+        for f in self.comidas:
+            if cabeca == f.pos:
+                self.snake.grow()
+                self.engine.score.adicionar_pontos(10)
+                self.engine.hud.set_score(self.engine.score.obter_pontuacao())
+                self.engine.particulas.emit_food_burst(
+                    f.pos, FOOD_COLOR, self.engine.block
+                )
+                self.food_spawn_safe(f, self.comidas)
+
+        for boost, tipo, cor in (
+            (self.boost_vel,   "velocidade", _COR_BOOST_VEL),
+            (self.boost_imune, "imunidade",  _COR_BOOST_IMUNE),
+        ):
+            if boost.pos and cabeca == boost.pos:
+                self._ativar_boost_jogador(tipo)
+                self.engine.particulas.emit_boost_pickup(
+                    boost.pos, cor, self.engine.block
+                )
+                self._spawn_item(boost)
+                self._atualizar_blocos_boosts()
+
+    def _verificar_comida_bot(self) -> None:
+        """Verifica comida e boosts na posição intermédia do bot durante boost."""
+        cabeca = self.bot.head_pos()
+        for f in self.comidas:
+            if cabeca == f.pos:
+                self.bot.grow()
+                self._score_bot.adicionar_pontos(10)
+                self.food_spawn_safe(f, self.comidas)
+
+        for boost, tipo, _ in (
+            (self.boost_vel,   "velocidade", None),
+            (self.boost_imune, "imunidade",  None),
+        ):
+            if boost.pos and cabeca == boost.pos:
+                self._ativar_boost_bot(tipo)
+                self._spawn_item(boost)
+                self._atualizar_blocos_boosts()
 
     # ── Bot ───────────────────────────────────────────────────────────────────
 
@@ -213,7 +295,7 @@ class PlayerVsAI(BaseModo):
         b = self.engine.block
         corpos = {
             (s[0] // b, s[1] // b)
-            for cobra in (self.bot, self.cobra)
+            for cobra in (self.bot, self.snake)
             for s in cobra.segments[:-1]
         }
         return corpos if self._imune() else corpos | self._obst
@@ -221,11 +303,11 @@ class PlayerVsAI(BaseModo):
     def _logica_bot(self):
         bloqueios   = self._obter_bloqueios()
         cabeca      = self._bpx(self.bot.head_pos())
-        cabeca_p    = self._bpx(self.cobra.head_pos())
-        comida      = self._bpx(self.comida.pos)
+        cabeca_p    = self._bpx(self.snake.head_pos())
+        comida      = self._bpx(self.comidas[0].pos)
         limite_ff   = max(4, len(self.bot.segments) // 2)
         tam_bot     = len(self.bot.segments)
-        tam_jogador = len(self.cobra.segments)
+        tam_jogador = len(self.snake.segments)
         perto       = self._manhattan(cabeca, cabeca_p) <= DIST_CONFRONTO
 
         boost_alvo = self._avaliar_boosts(
@@ -262,13 +344,13 @@ class PlayerVsAI(BaseModo):
         return comida, "comer"
 
     def _calcular_intercecao(self, cabeca_bot, cabeca_jogador, bloqueios):
-        dx, dy = self.cobra.direction
+        dx, dy = self.snake.direction
         passos = max(2, self._manhattan(cabeca_bot, cabeca_jogador) // 2)
         ax = max(1, min(self._mapa.cols - 2, cabeca_jogador[0] + dx * passos))
         ay = max(1, min(self._mapa.rows - 2, cabeca_jogador[1] + dy * passos))
         alvo = (ax, ay)
         if alvo in bloqueios:
-            segs = self.cobra.segments
+            segs = self.snake.segments
             return self._bpx(segs[1] if len(segs) >= 2 else segs[0])
         return alvo
 
@@ -312,7 +394,7 @@ class PlayerVsAI(BaseModo):
                         melhor_prio, melhor_boost = p, pos
         return melhor_boost
 
-    # ── A* com came_from — O(n) memória ───────────────────────────────────────
+    # ── A* ────────────────────────────────────────────────────────────────────
 
     def _astar(self, inicio, objetivo, bloqueios):
         cols, rows = self._mapa.cols, self._mapa.rows
@@ -392,33 +474,31 @@ class PlayerVsAI(BaseModo):
                 melhor_esp, melhor_dir = esp, d
         return melhor_dir
 
-    # ── Colisões ──────────────────────────────────────────────────────────────
+    # ── Colisões (frame final) ────────────────────────────────────────────────
 
     def _verificar_colisoes(self):
         if self.terminado:
             return
 
-        cabeca_j = self.cobra.head_pos()
+        cabeca_j = self.snake.head_pos()
         cabeca_b = self.bot.head_pos()
 
+        # ── Comida ───────────────────────────────────────────────────────────
         for f in self.comidas:
             if cabeca_j == f.pos:
-                self.cobra.grow()
+                self.snake.grow()
                 self.engine.score.adicionar_pontos(10)
                 self.engine.hud.set_score(self.engine.score.obter_pontuacao())
-                self.engine.particles.emit_food_burst(
+                self.engine.particulas.emit_food_burst(
                     f.pos, FOOD_COLOR, self.engine.block
                 )
-                try:
-                    self.engine.assets.get_sound("eat").play()
-                except Exception:
-                    pass
                 self.food_spawn_safe(f, self.comidas)
             if cabeca_b == f.pos:
                 self.bot.grow()
-                self.pontos_bot += 10
+                self._score_bot.adicionar_pontos(10)
                 self.food_spawn_safe(f, self.comidas)
 
+        # ── Boosts ───────────────────────────────────────────────────────────
         for boost, tipo, cor in (
             (self.boost_vel,   "velocidade", _COR_BOOST_VEL),
             (self.boost_imune, "imunidade",  _COR_BOOST_IMUNE),
@@ -427,7 +507,7 @@ class PlayerVsAI(BaseModo):
                 continue
             if cabeca_j == boost.pos:
                 self._ativar_boost_jogador(tipo)
-                self.engine.particles.emit_boost_pickup(
+                self.engine.particulas.emit_boost_pickup(
                     boost.pos, cor, self.engine.block
                 )
                 self._spawn_item(boost)
@@ -437,24 +517,26 @@ class PlayerVsAI(BaseModo):
                 self._spawn_item(boost)
                 self._atualizar_blocos_boosts()
 
+        # ── Paredes / teleporte ───────────────────────────────────────────────
         col_j = self._mapa.verificar_colisao(cabeca_j)
         col_b = self._mapa.verificar_colisao(cabeca_b)
-        if isinstance(col_j, tuple): self.cobra.set_head_pos(col_j)
+        if isinstance(col_j, tuple): self.snake.set_head_pos(col_j)
         if isinstance(col_b, tuple): self.bot.set_head_pos(col_b)
 
+        # ── Entre cobras ──────────────────────────────────────────────────────
         if cabeca_j == cabeca_b:
-            vantagem       = len(self.bot.segments) - len(self.cobra.segments)
+            vantagem       = len(self.bot.segments) - len(self.snake.segments)
             jogador_morreu = vantagem >= 0
             bot_morreu     = vantagem <= 0
         else:
             jogador_morreu = (
                 (col_j is True and not self._jogador_imune())
                 or cabeca_j in self.bot.segments
-                or self.cobra.collides_self()
+                or self.snake.collides_self()
             )
             bot_morreu = (
                 (col_b is True and not self._imune())
-                or cabeca_b in self.cobra.segments
+                or cabeca_b in self.snake.segments
                 or self.bot.collides_self()
             )
 
@@ -465,12 +547,12 @@ class PlayerVsAI(BaseModo):
             self._bot_morreu_flag     = bot_morreu
             self.engine.trigger_shake(intensity=8.0, duration=0.35)
             if jogador_morreu:
-                self.engine.particles.emit_death(
-                    self.cobra.segments, self.cobra.body_color, self.engine.block
+                self.engine.particulas.emit_death(
+                    self.snake.segments, self.snake.body_color, self.engine.block
                 )
-                self.cobra.start_death_flash()
+                self.snake.start_death_flash()
             if bot_morreu:
-                self.engine.particles.emit_death(
+                self.engine.particulas.emit_death(
                     self.bot.segments, self.bot.body_color, self.engine.block
                 )
                 self.bot.start_death_flash()
@@ -482,13 +564,12 @@ class PlayerVsAI(BaseModo):
             f.update(dt)
 
     def draw(self, surface: pygame.Surface) -> None:
-        self.cobra.draw(surface)
+        self.snake.draw(surface)
         self.bot.draw(surface)
         for f in self.comidas:
             f.draw(surface)
         self.boost_vel.draw(surface)
         self.boost_imune.draw(surface)
-        # Nota: boost panel foi movido para o HUD lateral
 
         if self.started:
             return
@@ -497,7 +578,7 @@ class PlayerVsAI(BaseModo):
         f_p = pygame.font.SysFont(None, 30)
         cx  = cfg.SCREEN_WIDTH // 2
         cy  = surface.get_height() // 2
-        if not self.p1_pronto:
+        if not self.p1_ready:
             msg = f_p.render("Carrega numa direção para começar!", True, (255, 255, 255))
             surface.blit(msg, (cx - msg.get_width() // 2, cy - 40))
             ctl = f_p.render("WASD ou Setas", True, (180, 180, 180))

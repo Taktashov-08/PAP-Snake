@@ -7,8 +7,6 @@ GRID_COLS = 45
 GRID_ROWS  = 30
 
 # ── Sidebar HUD ───────────────────────────────────────────────────────────────
-# Largura do painel lateral. O engine adiciona este valor à superfície lógica;
-# a área de jogo (mapa, cobras, comida) continua com SCREEN_WIDTH × SCREEN_HEIGHT.
 SIDEBAR_W = 160
 
 def fit_screen_to_grid(desired_w, desired_h, cols=GRID_COLS, rows=GRID_ROWS):
@@ -26,10 +24,10 @@ SCREEN_WIDTH, SCREEN_HEIGHT, BLOCK_SIZE = fit_screen_to_grid(
 FPS = 7
 
 # ── Modos de jogo ─────────────────────────────────────────────────────────────
-MODO_OG_SNAKE    = "OG Snake"
-MODO_1V1         = "1v1"
-MODO_VS_AI       = "Vs AI"
-MODO_SNAKE_TORRE = "Snake Torre"
+MODO_OG_SNAKE = "OG Snake"
+MODO_1V1      = "1v1"
+MODO_VS_AI    = "Vs AI"
+# NOTA: MODO_SNAKE_TORRE removido — modo não implementado
 
 # ── Dificuldades → multiplicador de velocidade ────────────────────────────────
 DIFICULDADES = {
@@ -44,11 +42,28 @@ BG_PANEL     = (24,  26,  33)
 BG_INPUT     = (30,  32,  40)
 GRID_LINE    = (26,  28,  36)
 
+# ── Ecrãs de fim de jogo ──────────────────────────────────────────────────────
+# Cores de resultado partilhadas por engine.py e ecras.py
+RESULT_WIN   = (80,  220, 120)
+RESULT_LOSS  = (220,  80,  80)
+RESULT_DRAW  = (220, 180,  60)
+
+# Painéis de overlay (fundo + borda) — Vs AI
+OVERLAY_PANEL_BG_VSAI     = (20,  24,  20, 240)
+OVERLAY_PANEL_BORDER_VSAI = (80, 100,  80, 180)
+
+# Painéis de overlay (fundo + borda) — 1v1
+OVERLAY_PANEL_BG_1V1      = (18,  20,  30, 240)
+OVERLAY_PANEL_BORDER_1V1  = (60,  70, 100, 200)
+
+# Overlay escuro semi-transparente (pausa / game-over genérico)
+OVERLAY_DARK_ALPHA = 160
+
 # ── Sidebar / HUD ─────────────────────────────────────────────────────────────
-HUD_SIDEBAR_BG    = (20,  22,  30)    # fundo do painel lateral
-HUD_SIDEBAR_SEP   = (38,  42,  58)    # linha separadora vertical
-HUD_SECTION_LINE  = (34,  38,  52)    # divisor entre secções
-HUD_LABEL         = (90,  95, 115)    # etiquetas (pequenas, discretas)
+HUD_SIDEBAR_BG    = (20,  22,  30)
+HUD_SIDEBAR_SEP   = (38,  42,  58)
+HUD_SECTION_LINE  = (34,  38,  52)
+HUD_LABEL         = (90,  95, 115)
 
 # ── Paredes ───────────────────────────────────────────────────────────────────
 WALL_FACE       = (38,  42,  58)

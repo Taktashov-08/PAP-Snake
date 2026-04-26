@@ -83,13 +83,13 @@ class OgSnake(BaseModo):
                 self.engine.hud.set_score(
                     self.engine.score.obter_pontuacao()
                 )
-                self.engine.particles.emit_food_burst(
+                self.engine.particulas.emit_food_burst(
                     comida.pos, FOOD_COLOR, self.engine.block
                 )
                 self.food_spawn_safe(comida, self.foods)
 
     def _on_death(self) -> None:
-        self.engine.particles.emit_death(
+        self.engine.particulas.emit_death(
             self.snake.segments, self.snake.body_color, self.engine.block
         )
         self.engine.trigger_shake(intensity=7.0, duration=0.32)

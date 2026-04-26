@@ -38,18 +38,18 @@ class _Particle:
 
 # ── Sistema público ────────────────────────────────────────────────────────────
 
-class ParticleSystem:
+class SistemaDeParticulas:
     """
     Gestor central de partículas com limite de segurança (_MAX).
 
     Exemplo de uso no engine::
 
-        self.particles = ParticleSystem()
+        self.particulas = SistemaDeParticulas()
         # em eventos de jogo:
-        self.particles.emit_food_burst(pos, color, block)
+        self.particulas.emit_food_burst(pos, color, block)
         # no loop visual (60 fps):
-        self.particles.update(dt)
-        self.particles.draw(surface)
+        self.particulas.update(dt)
+        self.particulas.draw(surface)
     """
 
     _MAX: int = 500  # limite para evitar lag em casos extremos

@@ -6,22 +6,49 @@ from game.core.caminhos import caminho_dados_utilizador
 
 class GestorRecordes:
     """
-    Guarda e le pontuacoes num ficheiro .txt na pasta do utilizador.
+    Guarda e lê pontuações num ficheiro .txt na pasta do utilizador.
     Funciona tanto em desenvolvimento como dentro de um .exe.
     """
 
+    _CABECALHO = "\tnome\t|\tmodo\t|\tdificuldade\t|\tpontuacao\t|\tdata\t\n"
+
     def __init__(self, nome_ficheiro: str = "records.txt"):
-        # Sempre na pasta do utilizador — nunca junto ao .exe
         self.caminho = caminho_dados_utilizador(nome_ficheiro)
 
         if not os.path.exists(self.caminho):
             with open(self.caminho, "w", encoding="utf-8") as f:
-                f.write("\tnome\t|\tmodo\t|\tdificuldade\t|\tpontuacao\t|\tdata\t\n")
+                f.write(self._CABECALHO)
 
     def guardar_pontuacao(self, nome: str, modo: str, dificuldade: str, pontuacao: int):
+        """Acrescenta sempre um novo registo (modos normais)."""
         data = datetime.now().strftime("%Y-%m-%d %H:%M")
         with open(self.caminho, "a", encoding="utf-8") as f:
             f.write(f"\t{nome}\t|\t{modo}\t|\t{dificuldade}\t|\t{pontuacao}\t|\t{data}\t\n")
+
+    def guardar_pontuacao_unica(self, nome: str, modo: str, dificuldade: str, pontuacao: int):
+        """Guarda um único registo por jogador/modo.
+        Só actualiza se a nova pontuação for MAIOR do que a existente."""
+        todas = self.ler_pontuacoes()
+
+        existente = next(
+            (s for s in todas if s["nome"] == nome and s["modo"] == modo), None)
+
+        if existente is not None and existente["pontuacao"] >= pontuacao:
+            return
+
+        # Reescreve o ficheiro sem o registo antigo e adiciona o novo no fim
+        resto = [s for s in todas if not (s["nome"] == nome and s["modo"] == modo)]
+        data  = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+        with open(self.caminho, "w", encoding="utf-8") as f:
+            f.write(self._CABECALHO)
+            for s in resto:
+                f.write(
+                    f"\t{s['nome']}\t|\t{s['modo']}\t|\t{s['dificuldade']}\t|"
+                    f"\t{s['pontuacao']}\t|\t{s['data']}\t\n"
+                )
+            f.write(
+                f"\t{nome}\t|\t{modo}\t|\t{dificuldade}\t|\t{pontuacao}\t|\t{data}\t\n")
 
     def ler_pontuacoes(self, modo_filtrar: str = None) -> list:
         pontuacoes = []
@@ -47,8 +74,8 @@ class GestorRecordes:
 
     def limpar_registos(self):
         with open(self.caminho, "w", encoding="utf-8") as f:
-            f.write("\tnome\t|\tmodo\t|\tdificuldade\t|\tpontuacao\t|\tdata\t\n")
+            f.write(self._CABECALHO)
 
 
-# Alias retrocompativel — o resto do codigo usa RecordsManager
+# Alias retrocompatível — o resto do código usa RecordsManager
 RecordsManager = GestorRecordes

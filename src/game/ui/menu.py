@@ -1,75 +1,61 @@
 # src/game/ui/menu.py
 """
-Menu principal com animações visuais:
-  - Título com bob sinusoidal e pulso de cor
-  - Botões com entrada deslizante (slide-in) na primeira exibição
-  - Transições com fade entre ecrãs
+Menu principal com:
+  - Título animado (bob + pulso de cor)
+  - Botões com slide-in escalonado
+  - Ecrã de Configurações (volume música, volume SFX, toggle música)
+  - Integração com GestorMusica e Configuracoes
 """
 from __future__ import annotations
 
 import math
-import sys
 import re
+import sys
 
 import pygame
 
 import game.config as cfg
 import game.config as C
-from game.core.engine   import Game
-from game.core.records  import RecordsManager
-from game.core.nomes    import GestorNomes
-from game.ui            import ui_utils
+from game.core.engine        import Game
+from game.core.records       import RecordsManager
+from game.core.nomes         import GestorNomes
+from game.core.musica        import GestorMusica
+from game.core.configuracoes import Configuracoes
+from game.ui                 import ui_utils
 
 pygame.init()
 
 LOGICAL_W = cfg.SCREEN_WIDTH
 LOGICAL_H = cfg.SCREEN_HEIGHT
 
-# ── Parâmetros de animação do título ──────────────────────────────────────────
-_TITLE_BOB_AMP   = 5.0    # amplitude do bob vertical em píxeis
-_TITLE_BOB_SPEED = 1.2    # ciclos por segundo
-_TITLE_COL_A     = C.TITLE_COLOR           # cor base
-_TITLE_COL_B     = (160, 220, 170)         # cor de destaque (leve verde)
-
-# ── Parâmetros do slide-in dos botões ─────────────────────────────────────────
-_SLIDE_DURATION = 0.35    # segundos por botão
-_SLIDE_STAGGER  = 0.06    # atraso entre botões (s)
+_TITLE_BOB_AMP   = 5.0
+_TITLE_BOB_SPEED = 1.2
+_TITLE_COL_A     = C.TITLE_COLOR
+_TITLE_COL_B     = (160, 220, 170)
+_SLIDE_DURATION  = 0.35
+_SLIDE_STAGGER   = 0.06
 
 
 def _lerp_color(a, b, t):
-    """Interpolação linear entre duas cores."""
     return tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(3))
-
 
 def _ease_out_cubic(t: float) -> float:
     return 1.0 - (1.0 - t) ** 3
 
 
 def draw_title(surface, font_big, w, y_base, t: float = 0.0):
-    """
-    Título animado com bob vertical e pulso de cor suave.
-    `t` é o tempo acumulado em segundos.
-    """
     bob   = math.sin(t * _TITLE_BOB_SPEED * math.tau) * _TITLE_BOB_AMP
-    pulse = (math.sin(t * 0.8 * math.tau) + 1.0) / 2.0   # 0 → 1
+    pulse = (math.sin(t * 0.8 * math.tau) + 1.0) / 2.0
     color = _lerp_color(_TITLE_COL_A, _TITLE_COL_B, pulse * 0.4)
     text  = font_big.render("Snake", True, color)
     surface.blit(text, text.get_rect(center=(w // 2, int(y_base + bob))))
 
 
-# ── Botão ─────────────────────────────────────────────────────────────────────
+# ── Botão com slide-in ────────────────────────────────────────────────────────
 
 class Button:
-    """
-    Botão com:
-      - Animação de entrada deslizante (slide desde a esquerda)
-      - Hover reactivo
-      - Callback opcional
-    """
-
-    def __init__(self, text: str, x: int, y: int, w: int, h: int,
-                 color, hover_color, action=None, font_size: int = 30,
-                 slide_delay: float = 0.0) -> None:
+    def __init__(self, text, x, y, w, h, color, hover_color,
+                 action=None, font_size=30, slide_delay=0.0):
         self.text        = text
         self._target_x   = int(x)
         self.rect        = pygame.Rect(int(x), int(y), int(w), int(h))
@@ -77,31 +63,27 @@ class Button:
         self.hover_color = hover_color
         self.action      = action
         self.font        = pygame.font.SysFont("Consolas", font_size)
-        # Animação de slide
-        self._slide_t    = 0.0          # 0 → não animado, 1 → posição final
-        self._slide_delay = slide_delay # segundos antes de começar
+        self._slide_t    = 0.0
+        self._slide_delay = slide_delay
         self._elapsed    = 0.0
 
     def advance(self, dt: float) -> None:
-        """Avança a animação de slide-in."""
         self._elapsed += dt
         if self._elapsed < self._slide_delay:
             return
-        progress = min(1.0, (self._elapsed - self._slide_delay) / _SLIDE_DURATION)
+        progress     = min(1.0, (self._elapsed - self._slide_delay) / _SLIDE_DURATION)
         self._slide_t = _ease_out_cubic(progress)
 
-    def draw(self, surface: pygame.Surface, mouse_pos=None) -> None:
+    def draw(self, surface, mouse_pos=None):
         if mouse_pos is None:
             mouse_pos = (-1, -1)
-        # Offset de slide: entra da esquerda
-        offset = int((1.0 - self._slide_t) * -(LOGICAL_W + self.rect.w))
+        offset    = int((1.0 - self._slide_t) * -(LOGICAL_W + self.rect.w))
         draw_rect = self.rect.move(offset, 0)
         hover     = draw_rect.collidepoint(mouse_pos) and self._slide_t >= 1.0
         ui_utils.draw_btn(surface, draw_rect, self.color, self.hover_color,
                           hover, self.text, self.font)
 
     def check_click(self, mouse_pos) -> bool:
-        """Só responde a cliques quando a animação de slide terminou."""
         if self._slide_t < 1.0:
             return False
         if self.rect.collidepoint(mouse_pos):
@@ -111,72 +93,81 @@ class Button:
         return False
 
 
-# ── Fade de transição ─────────────────────────────────────────────────────────
+# ── Slider reutilizável ───────────────────────────────────────────────────────
 
-def _fade_out(screen, logical_surface, logical_size,
-              duration: float = 0.25, clock=None) -> None:
-    """Fade a preto sobre o ecrã actual."""
-    if clock is None:
-        clock = pygame.time.Clock()
-    elapsed = 0.0
-    snap    = logical_surface.copy()
-    overlay = pygame.Surface(logical_size, pygame.SRCALPHA)
-    while elapsed < duration:
-        dt      = clock.tick(60) / 1000.0
-        elapsed += dt
-        alpha   = int(min(255, (elapsed / duration) * 255))
-        overlay.fill((0, 0, 0, alpha))
-        logical_surface.blit(snap, (0, 0))
-        logical_surface.blit(overlay, (0, 0))
-        ui_utils.blit_scaled(screen, logical_surface, logical_size)
-        for ev in pygame.event.get():
-            if ev.type == pygame.QUIT:
-                pygame.quit(); sys.exit()
+class Slider:
+    """
+    Barra deslizante horizontal para ajuste de volume (0.0–1.0).
+    Devolve o novo valor quando clicado/arrastado.
+    """
+    def __init__(self, x, y, w, h=18):
+        self.rect   = pygame.Rect(x, y, w, h)
+        self._drag  = False
 
+    def handle_event(self, ev, valor_actual: float,
+                     logical_surface, screen, logical_size) -> float:
+        """Processa evento e devolve o valor actualizado (0.0–1.0)."""
+        if ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
+            mpos = ui_utils.window_to_logical(screen, logical_size, ev.pos)
+            if self.rect.collidepoint(mpos):
+                self._drag = True
+                return self._calc(mpos)
+        if ev.type == pygame.MOUSEBUTTONUP and ev.button == 1:
+            self._drag = False
+        if ev.type == pygame.MOUSEMOTION and self._drag:
+            mpos = ui_utils.window_to_logical(screen, logical_size, ev.pos)
+            return self._calc(mpos)
+        return valor_actual
 
-def _fade_in(screen, logical_surface, logical_size,
-             duration: float = 0.20, clock=None) -> None:
-    """Fade de preto para o conteúdo actual."""
-    if clock is None:
-        clock = pygame.time.Clock()
-    elapsed = 0.0
-    snap    = logical_surface.copy()
-    overlay = pygame.Surface(logical_size, pygame.SRCALPHA)
-    while elapsed < duration:
-        dt      = clock.tick(60) / 1000.0
-        elapsed += dt
-        alpha   = int(max(0, 255 - (elapsed / duration) * 255))
-        overlay.fill((0, 0, 0, alpha))
-        logical_surface.blit(snap, (0, 0))
-        logical_surface.blit(overlay, (0, 0))
-        ui_utils.blit_scaled(screen, logical_surface, logical_size)
-        for ev in pygame.event.get():
-            if ev.type == pygame.QUIT:
-                pygame.quit(); sys.exit()
+    def draw(self, surface, valor: float,
+             cor_track=(45, 50, 68), cor_fill=(80, 160, 210),
+             cor_thumb=(200, 220, 240)):
+        # Track
+        pygame.draw.rect(surface, cor_track, self.rect, border_radius=4)
+        # Fill
+        fill_w = max(4, int(self.rect.w * valor))
+        pygame.draw.rect(surface, cor_fill,
+                         pygame.Rect(self.rect.x, self.rect.y,
+                                     fill_w, self.rect.h),
+                         border_radius=4)
+        # Thumb
+        tx = self.rect.x + fill_w
+        ty = self.rect.centery
+        pygame.draw.circle(surface, cor_thumb, (tx, ty), self.rect.h)
+        pygame.draw.circle(surface, cor_track,  (tx, ty), self.rect.h - 3)
+        pygame.draw.circle(surface, cor_fill,   (tx, ty), self.rect.h - 5)
+
+    def _calc(self, mpos) -> float:
+        t = (mpos[0] - self.rect.x) / max(1, self.rect.w)
+        return max(0.0, min(1.0, t))
 
 
 # ── Menu principal ────────────────────────────────────────────────────────────
 
 class Menu:
-    """Menu principal com título animado e botões com slide-in."""
-
-    def __init__(self) -> None:
+    def __init__(self):
         self.screen = pygame.display.set_mode(
-            (cfg.SCREEN_WIDTH, cfg.SCREEN_HEIGHT), pygame.RESIZABLE
-        )
+            (cfg.SCREEN_WIDTH, cfg.SCREEN_HEIGHT), pygame.RESIZABLE)
         pygame.display.set_caption("Snake")
 
         self.running         = True
         self.logical_size    = (LOGICAL_W, LOGICAL_H)
         self.logical_surface = pygame.Surface(self.logical_size)
+
         self.font_title = pygame.font.SysFont("Consolas", 52, bold=True)
         self.font_big   = pygame.font.SysFont("Consolas", 30)
         self.font_sm    = pygame.font.SysFont("Consolas", 18)
-        self.gestor_nomes = GestorNomes()
 
-        self._title_t: float  = 0.0    # acumulador de tempo para animação
-        self._btn_elapsed: float = 0.0  # tempo desde que os botões apareceram
+        self.gestor_nomes = GestorNomes()
+        self.musica       = GestorMusica()
+        self.config       = Configuracoes()
+
+        self._title_t    = 0.0
+        self._btn_elapsed = 0.0
         self.recenter_buttons()
+
+        # Iniciar música do menu
+        self.musica.tocar_menu()
 
     def _wl(self, pos):
         return ui_utils.window_to_logical(self.screen, self.logical_size, pos)
@@ -188,7 +179,7 @@ class Menu:
         s = font.render(text, True, color)
         self.logical_surface.blit(s, s.get_rect(center=(LOGICAL_W // 2, y)))
 
-    # ── Acções ────────────────────────────────────────────────────────────────
+    # ── Acções dos botões ─────────────────────────────────────────────────────
 
     def action_jogar(self):
         modo = self._menu_selecao("Modo de jogo", [
@@ -251,8 +242,119 @@ class Menu:
             "Não batas nas paredes nem em ti.",
         ])
 
+    def action_config(self):
+        self._ecra_config()
+
     def action_sair(self):
         self.running = False
+
+    # ── Ecrã de configurações ─────────────────────────────────────────────────
+
+    def _ecra_config(self):
+        """Ecrã de configurações com sliders de volume e toggle de música."""
+        clock     = pygame.time.Clock()
+        cx        = LOGICAL_W // 2
+        painel    = pygame.Rect(cx - 240, 100, 480, 340)
+
+        slider_w  = 300
+        sl_x      = cx - slider_w // 2
+
+        sl_musica = Slider(sl_x, 210, slider_w)
+        sl_sfx    = Slider(sl_x, 278, slider_w)
+
+        btn_toggle = pygame.Rect(cx - 70, 320, 140, 38)
+        btn_voltar = pygame.Rect(cx - 80, 390, 160, 40)
+        btn_reset  = pygame.Rect(cx - 80, 344, 160, 36)   # reset defaults
+
+        while self.running:
+            for ev in pygame.event.get():
+                if ev.type == pygame.QUIT:
+                    self.running = False; return
+                if ev.type == pygame.VIDEORESIZE:
+                    self.screen = pygame.display.set_mode(
+                        (ev.w, ev.h), pygame.RESIZABLE)
+                if ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE:
+                    return
+                if ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
+                    mpos = self._wl(ev.pos)
+                    if btn_voltar.collidepoint(mpos):
+                        return
+                    if btn_toggle.collidepoint(mpos):
+                        self.musica.set_musica_ativa(
+                            not self.config.musica_ativa
+                        )
+                        # Retomar música do menu se foi reactivada
+                        if self.config.musica_ativa:
+                            self.musica.tocar_menu()
+                    if btn_reset.collidepoint(mpos):
+                        self.config.resetar()
+                        self.musica.set_volume_musica(self.config.musica_volume)
+                        self.musica.set_volume_sfx(self.config.sfx_volume)
+
+                # Sliders
+                novo_mv = sl_musica.handle_event(
+                    ev, self.config.musica_volume,
+                    self.logical_surface, self.screen, self.logical_size)
+                if novo_mv != self.config.musica_volume:
+                    self.musica.set_volume_musica(novo_mv)
+
+                novo_sv = sl_sfx.handle_event(
+                    ev, self.config.sfx_volume,
+                    self.logical_surface, self.screen, self.logical_size)
+                if novo_sv != self.config.sfx_volume:
+                    self.musica.set_volume_sfx(novo_sv)
+
+            # ── Desenho ───────────────────────────────────────────────────
+            ui_utils.draw_bg(self.logical_surface, LOGICAL_W, LOGICAL_H)
+            ui_utils.draw_panel(self.logical_surface, painel, radius=14)
+
+            self.txt_center("Configurações", self.font_big, C.HUD_ACCENT, 130)
+
+            # Volume música
+            lbl_mv = self.font_sm.render("Volume Música", True, C.HUD_TEXT_MAIN)
+            self.logical_surface.blit(lbl_mv, (sl_x, 186))
+            pct_mv = self.font_sm.render(
+                f"{int(self.config.musica_volume * 100)}%",
+                True, C.HUD_SCORE)
+            self.logical_surface.blit(
+                pct_mv, (sl_x + slider_w + 10, 186))
+            sl_musica.draw(self.logical_surface, self.config.musica_volume)
+
+            # Volume SFX
+            lbl_sv = self.font_sm.render("Volume SFX", True, C.HUD_TEXT_MAIN)
+            self.logical_surface.blit(lbl_sv, (sl_x, 254))
+            pct_sv = self.font_sm.render(
+                f"{int(self.config.sfx_volume * 100)}%",
+                True, C.HUD_SCORE)
+            self.logical_surface.blit(
+                pct_sv, (sl_x + slider_w + 10, 254))
+            sl_sfx.draw(self.logical_surface, self.config.sfx_volume)
+
+            # Toggle música
+            ativa    = self.config.musica_ativa
+            tog_cor  = (40, 130, 70) if ativa else (120, 40, 40)
+            tog_hov  = (55, 160, 88) if ativa else (150, 55, 55)
+            tog_txt  = "Música: ON" if ativa else "Música: OFF"
+            mlog     = self._wl(pygame.mouse.get_pos())
+            ui_utils.draw_btn(self.logical_surface, btn_toggle,
+                              tog_cor, tog_hov,
+                              btn_toggle.collidepoint(mlog),
+                              tog_txt, self.font_sm)
+
+            # Reset
+            ui_utils.draw_btn(self.logical_surface, btn_reset,
+                              C.BTN_HELP, C.BTN_HELP_HOV,
+                              btn_reset.collidepoint(mlog),
+                              "Repor Padrão", self.font_sm)
+
+            # Voltar
+            ui_utils.draw_btn(self.logical_surface, btn_voltar,
+                              C.BTN_PLAY, C.BTN_PLAY_HOV,
+                              btn_voltar.collidepoint(mlog),
+                              "Voltar", self.font_sm)
+
+            self._blit()
+            clock.tick(60)
 
     # ── Menus internos ────────────────────────────────────────────────────────
 
@@ -277,14 +379,14 @@ class Menu:
                 pygame.Rect(cx - btn_w // 2, 200 + i * gap, btn_w, btn_h),
                 valor, b, h, label,
             ))
-
         clock = pygame.time.Clock()
         while self.running:
             for ev in pygame.event.get():
                 if ev.type == pygame.QUIT:
                     self.running = False; return None
                 if ev.type == pygame.VIDEORESIZE:
-                    self.screen = pygame.display.set_mode((ev.w, ev.h), pygame.RESIZABLE)
+                    self.screen = pygame.display.set_mode(
+                        (ev.w, ev.h), pygame.RESIZABLE)
                 if ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
                     mpos = self._wl(ev.pos)
                     for rect, val, _, _, _ in rects:
@@ -292,7 +394,6 @@ class Menu:
                             return val
                 if ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE:
                     return None
-
             ui_utils.draw_bg(self.logical_surface, LOGICAL_W, LOGICAL_H)
             panel = pygame.Rect(cx - btn_w // 2 - 40, 140,
                                 btn_w + 80, 80 + len(itens) * gap)
@@ -306,16 +407,14 @@ class Menu:
             clock.tick(60)
 
     def _input_nome(self, titulo, default="Player", excluir=None):
-        """Caixa de texto para inserir nome com sugestões de sessões anteriores."""
         excluir   = excluir or []
         guardados = [n for n in self.gestor_nomes.carregar()
                      if n not in excluir][:4]
-
         nome, aviso = "", ""
-        tique  = 0
-        clock  = pygame.time.Clock()
-        cx     = LOGICAL_W // 2
-        box    = pygame.Rect(cx - 190, 220, 380, 48)
+        tique = 0
+        clock = pygame.time.Clock()
+        cx    = LOGICAL_W // 2
+        box   = pygame.Rect(cx - 190, 220, 380, 48)
         sug_rects = [
             (pygame.Rect(cx - 190, 334 + i * 44, 380, 36), n)
             for i, n in enumerate(guardados)
@@ -329,7 +428,8 @@ class Menu:
                 if ev.type == pygame.QUIT:
                     self.running = False; return None
                 if ev.type == pygame.VIDEORESIZE:
-                    self.screen = pygame.display.set_mode((ev.w, ev.h), pygame.RESIZABLE)
+                    self.screen = pygame.display.set_mode(
+                        (ev.w, ev.h), pygame.RESIZABLE)
                 if ev.type == pygame.KEYDOWN:
                     if ev.key == pygame.K_RETURN:
                         n = nome.strip()
@@ -347,8 +447,8 @@ class Menu:
                     elif ev.key == pygame.K_ESCAPE:
                         return None
                     else:
-                        if len(nome) < 12 and re.match(r"[A-Za-z0-9]",
-                                                        ev.unicode or ""):
+                        if len(nome) < 12 and re.match(
+                                r"[A-Za-z0-9]", ev.unicode or ""):
                             nome += ev.unicode; aviso = ""
                 if ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
                     mpos = self._wl(ev.pos)
@@ -360,35 +460,32 @@ class Menu:
             ui_utils.draw_bg(self.logical_surface, LOGICAL_W, LOGICAL_H)
             ui_utils.draw_panel(self.logical_surface, painel, radius=12)
             self.txt_center(titulo, self.font_big, C.HUD_TEXT_MAIN, 190)
-
             pygame.draw.rect(self.logical_surface, C.BG_INPUT, box, border_radius=6)
             pygame.draw.rect(self.logical_surface, C.UI_BORDER, box, 1, border_radius=6)
             cursor = "|" if (tique // 28) % 2 == 0 else " "
             ts = self.font_big.render(nome + cursor, True, C.WHITE)
             self.logical_surface.blit(ts, (box.x + 12, box.y + 10))
-
             self.txt_center("ENTER confirmar  ·  ESC voltar",
                             self.font_sm, C.HUD_TEXT, box.bottom + 16)
-
             if sug_rects:
-                self.txt_center("— Nomes anteriores —", self.font_sm, C.HUD_TEXT, 314)
+                self.txt_center("— Nomes anteriores —",
+                                self.font_sm, C.HUD_TEXT, 314)
                 mlog = self._wl(pygame.mouse.get_pos())
                 for rect, n in sug_rects:
                     hover  = rect.collidepoint(mlog)
                     cor_b  = C.BTN_RECORDS_HOV if hover else C.BTN_RECORDS
-                    pygame.draw.rect(self.logical_surface, cor_b, rect, border_radius=6)
-                    pygame.draw.rect(self.logical_surface, C.UI_BORDER, rect, 1,
-                                     border_radius=6)
+                    pygame.draw.rect(self.logical_surface, cor_b,
+                                     rect, border_radius=6)
+                    pygame.draw.rect(self.logical_surface, C.UI_BORDER,
+                                     rect, 1, border_radius=6)
                     tn = self.font_sm.render(n, True, C.WHITE)
-                    self.logical_surface.blit(tn, tn.get_rect(center=rect.center))
-
+                    self.logical_surface.blit(
+                        tn, tn.get_rect(center=rect.center))
             if aviso:
-                self.txt_center(aviso, self.font_sm, (200, 90, 90), painel.bottom - 18)
-
+                self.txt_center(aviso, self.font_sm,
+                                (200, 90, 90), painel.bottom - 18)
             self._blit()
             clock.tick(60)
-
-    # ── Ecrã de recordes ──────────────────────────────────────────────────────
 
     def _ecra_recordes(self):
         MODOS      = ["Todos", cfg.MODO_OG_SNAKE, cfg.MODO_VS_AI, cfg.MODO_1V1]
@@ -397,8 +494,8 @@ class Menu:
         btn_w_f, btn_gap = 108, 8
         total_bw  = len(MODOS) * btn_w_f + (len(MODOS) - 1) * btn_gap
         botoes_f  = [
-            (pygame.Rect(LOGICAL_W // 2 - total_bw // 2 + i * (btn_w_f + btn_gap),
-                         130, btn_w_f, 30), m)
+            (pygame.Rect(LOGICAL_W // 2 - total_bw // 2
+                         + i * (btn_w_f + btn_gap), 130, btn_w_f, 30), m)
             for i, m in enumerate(MODOS)
         ]
         clock = pygame.time.Clock()
@@ -409,7 +506,8 @@ class Menu:
                 if ev.type == pygame.QUIT:
                     self.running = False; return
                 if ev.type == pygame.VIDEORESIZE:
-                    self.screen = pygame.display.set_mode((ev.w, ev.h), pygame.RESIZABLE)
+                    self.screen = pygame.display.set_mode(
+                        (ev.w, ev.h), pygame.RESIZABLE)
                 if ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE:
                     return
                 if ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
@@ -419,28 +517,25 @@ class Menu:
                         if rect.collidepoint(mpos): filtro = m
 
             ui_utils.draw_bg(self.logical_surface, LOGICAL_W, LOGICAL_H)
-            ui_utils.draw_panel(self.logical_surface,
-                                pygame.Rect(50, 80, LOGICAL_W - 100, LOGICAL_H - 168),
-                                radius=12)
+            ui_utils.draw_panel(
+                self.logical_surface,
+                pygame.Rect(50, 80, LOGICAL_W - 100, LOGICAL_H - 168),
+                radius=12)
             self.txt_center("Recordes", self.font_big, C.HUD_ACCENT, 108)
-
             mlog = self._wl(pygame.mouse.get_pos())
             for rect, m in botoes_f:
                 ativo  = filtro == m
                 cor_b  = (55, 110, 175) if ativo else (
-                    C.BTN_MODE_A_HOV if rect.collidepoint(mlog) else C.BTN_MODE_A
-                )
+                    C.BTN_MODE_A_HOV if rect.collidepoint(mlog) else C.BTN_MODE_A)
                 ui_utils.draw_btn(self.logical_surface, rect, cor_b, cor_b,
                                   False, m, self.font_sm)
-
             if not scores:
                 self.txt_center("Sem recordes para este modo.",
                                 self.font_sm, C.HUD_TEXT, 210)
             else:
                 cab = f"  # {'Nome':<12} {'Modo':<13} {'Dif':<13} {'Pts':>5}"
                 self.logical_surface.blit(
-                    self.font_sm.render(cab, True, C.HUD_TEXT_MAIN), (80, 172)
-                )
+                    self.font_sm.render(cab, True, C.HUD_TEXT_MAIN), (80, 172))
                 pygame.draw.line(self.logical_surface, C.UI_BORDER,
                                  (80, 192), (LOGICAL_W - 80, 192), 1)
                 for i, p in enumerate(scores[:10]):
@@ -448,42 +543,14 @@ class Menu:
                              f" {p['dificuldade']:<13} {p['pontuacao']:>5}")
                     cor   = C.HUD_SCORE if i == 0 else C.HUD_TEXT
                     self.logical_surface.blit(
-                        self.font_sm.render(linha, True, cor), (80, 198 + i * 26)
-                    )
-
+                        self.font_sm.render(linha, True, cor),
+                        (80, 198 + i * 26))
             ui_utils.draw_btn(self.logical_surface, btn_voltar,
                               C.BTN_PLAY, C.BTN_PLAY_HOV,
-                              btn_voltar.collidepoint(mlog), "Voltar", self.font_sm)
+                              btn_voltar.collidepoint(mlog),
+                              "Voltar", self.font_sm)
             self._blit()
             clock.tick(30)
-
-    # ── Iniciar jogo ──────────────────────────────────────────────────────────
-
-    def _iniciar(self, p1, modo, dif, mapa, p2=None):
-        nome_dif, mult = dif
-        saved  = self.screen.get_size()
-        clock  = pygame.time.Clock()
-        # Fade out antes de iniciar
-        _fade_out(self.screen, self.logical_surface, self.logical_size,
-                  duration=0.22, clock=clock)
-        repetir = True
-        while repetir and self.running:
-            repetir = Game(
-                player_name=p1, player2_name=p2, modo=modo,
-                dificuldade=nome_dif, velocidade_mult=mult, mapa_tipo=mapa,
-            ).run()
-        try:
-            self.screen = pygame.display.set_mode(saved, pygame.RESIZABLE)
-        except Exception:
-            self.screen = pygame.display.set_mode(
-                (cfg.SCREEN_WIDTH, cfg.SCREEN_HEIGHT), pygame.RESIZABLE
-            )
-        self.recenter_buttons()
-        # Fade in de regresso ao menu
-        _fade_in(self.screen, self.logical_surface, self.logical_size,
-                 duration=0.20, clock=clock)
-
-    # ── Ecrã de texto (ajuda, etc.) ───────────────────────────────────────────
 
     def _ecra_texto(self, titulo, linhas, cor_titulo=None):
         cor_titulo = cor_titulo or C.HUD_TEXT_MAIN
@@ -494,17 +561,18 @@ class Menu:
                 if ev.type == pygame.QUIT:
                     self.running = False
                 if ev.type == pygame.VIDEORESIZE:
-                    self.screen = pygame.display.set_mode((ev.w, ev.h), pygame.RESIZABLE)
+                    self.screen = pygame.display.set_mode(
+                        (ev.w, ev.h), pygame.RESIZABLE)
                 if ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE:
                     return
                 if ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
                     if btn.collidepoint(self._wl(ev.pos)):
                         return
-
             ui_utils.draw_bg(self.logical_surface, LOGICAL_W, LOGICAL_H)
-            ui_utils.draw_panel(self.logical_surface,
-                                pygame.Rect(50, 80, LOGICAL_W - 100, LOGICAL_H - 180),
-                                radius=12)
+            ui_utils.draw_panel(
+                self.logical_surface,
+                pygame.Rect(50, 80, LOGICAL_W - 100, LOGICAL_H - 180),
+                radius=12)
             self.txt_center(titulo, self.font_big, cor_titulo, 110)
             for i, linha in enumerate(linhas):
                 self.txt_center(linha, self.font_sm, C.HUD_TEXT, 148 + i * 28)
@@ -515,36 +583,59 @@ class Menu:
             self._blit()
             clock.tick(30)
 
-    # ── Setup dos botões ──────────────────────────────────────────────────────
+    # ── Iniciar jogo ──────────────────────────────────────────────────────────
 
-    def recenter_buttons(self) -> None:
-        """Recria os botões com animação de slide-in escalonada."""
-        labels  = ["Jogar", "Recordes", "Ajuda", "Sair"]
+    def _iniciar(self, p1, modo, dif, mapa, p2=None):
+        nome_dif, mult = dif
+        saved = self.screen.get_size()
+        # Fade-out da música do menu antes de iniciar
+        self.musica.fade_out(700)
+        repetir = True
+        while repetir and self.running:
+            repetir = Game(
+                player_name=p1, player2_name=p2, modo=modo,
+                dificuldade=nome_dif, velocidade_mult=mult, mapa_tipo=mapa,
+            ).run()
+        try:
+            self.screen = pygame.display.set_mode(saved, pygame.RESIZABLE)
+        except Exception:
+            self.screen = pygame.display.set_mode(
+                (cfg.SCREEN_WIDTH, cfg.SCREEN_HEIGHT), pygame.RESIZABLE)
+        self.recenter_buttons()
+        # Retomar música do menu ao voltar
+        self.musica.tocar_menu()
+
+    # ── Botões principais ─────────────────────────────────────────────────────
+
+    def recenter_buttons(self):
+        labels  = ["Jogar", "Recordes", "Ajuda", "Configurações", "Sair"]
         actions = [self.action_jogar, self.action_recordes,
-                   self.action_ajuda,  self.action_sair]
-        colors  = [C.BTN_PLAY,     C.BTN_RECORDS,     C.BTN_HELP,     C.BTN_QUIT]
-        hovers  = [C.BTN_PLAY_HOV, C.BTN_RECORDS_HOV, C.BTN_HELP_HOV, C.BTN_QUIT_HOV]
+                   self.action_ajuda,  self.action_config, self.action_sair]
+        colors  = [C.BTN_PLAY,    C.BTN_RECORDS,    C.BTN_HELP,
+                   C.BTN_HELP,    C.BTN_QUIT]
+        hovers  = [C.BTN_PLAY_HOV, C.BTN_RECORDS_HOV, C.BTN_HELP_HOV,
+                   C.BTN_HELP_HOV, C.BTN_QUIT_HOV]
+        # 5 botões — centrar verticalmente
+        total_h = len(labels) * 68
+        start_y = LOGICAL_H // 2 - total_h // 2 + 10
         self.buttons = [
-            Button(
-                lab,
-                LOGICAL_W // 2 - 140,
-                LOGICAL_H // 2 - 110 + i * 78,
-                280, 58,
-                colors[i], hovers[i], actions[i], 28,
-                slide_delay=i * _SLIDE_STAGGER,   # entrada escalonada
-            )
+            Button(lab,
+                   LOGICAL_W // 2 - 140,
+                   start_y + i * 68,
+                   280, 52,
+                   colors[i], hovers[i], actions[i], 26,
+                   slide_delay=i * _SLIDE_STAGGER)
             for i, lab in enumerate(labels)
         ]
         self._btn_elapsed = 0.0
 
     # ── Loop principal ────────────────────────────────────────────────────────
 
-    def run(self) -> None:
+    def run(self):
         clock = pygame.time.Clock()
         while self.running:
-            dt      = clock.tick(60) / 1000.0
-            dt      = min(dt, 0.1)
-            events  = pygame.event.get()
+            dt     = min(clock.tick(60) / 1000.0, 0.1)
+            events = pygame.event.get()
 
             self._title_t    += dt
             self._btn_elapsed += dt
@@ -556,20 +647,15 @@ class Menu:
                     self.running = False
                 if ev.type == pygame.VIDEORESIZE:
                     self.screen = pygame.display.set_mode(
-                        (ev.w, ev.h), pygame.RESIZABLE
-                    )
+                        (ev.w, ev.h), pygame.RESIZABLE)
 
             ui_utils.draw_bg(self.logical_surface, LOGICAL_W, LOGICAL_H)
-            draw_title(
-                self.logical_surface, self.font_title,
-                LOGICAL_W, LOGICAL_H // 2 - 175,
-                t=self._title_t,
-            )
-            sep_y = LOGICAL_H // 2 - 130
-            pygame.draw.line(
-                self.logical_surface, C.UI_BORDER,
-                (LOGICAL_W // 2 - 140, sep_y), (LOGICAL_W // 2 + 140, sep_y), 1,
-            )
+            draw_title(self.logical_surface, self.font_title,
+                       LOGICAL_W, LOGICAL_H // 2 - 195, t=self._title_t)
+            sep_y = LOGICAL_H // 2 - 152
+            pygame.draw.line(self.logical_surface, C.UI_BORDER,
+                             (LOGICAL_W // 2 - 140, sep_y),
+                             (LOGICAL_W // 2 + 140, sep_y), 1)
 
             mlog = self._wl(pygame.mouse.get_pos())
             for btn in self.buttons:
